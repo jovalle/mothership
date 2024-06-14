@@ -1,0 +1,11 @@
+*.lock.hcl
+*.lock.info
+*.tfstate
+*.tfstate.backup
+.decrypted*
+.DS_Store
+.env
+.task
+.venv
+.vscode
+.terraform

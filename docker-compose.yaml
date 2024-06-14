@@ -1,0 +1,88 @@
+---
+services:
+  portainer:
+    command: -H unix:///var/run/docker.sock
+    container_name: portainer
+    env_file: .env
+    hostname: portainer
+    image: portainer/portainer-ce
+    labels:
+      - homepage.group=Mothership
+      - homepage.name=Portainer
+      - homepage.icon=portainer
+      - homepage.href=https://portainer.${DOMAIN}
+      - homepage.description=Container management
+      - homepage.widget.type=portainer
+      - homepage.widget.env=1
+      - homepage.widget.url=https://portainer.${DOMAIN}
+      - homepage.widget.key=${PORTAINER_API_KEY}
+      - homepage.widget.fields=["running", "stopped", "total"]
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN}`)
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
+    ports:
+      - 9000:9000
+    restart: unless-stopped
+    volumes:
+      - /var/lib/mothership/portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+  traefik:
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls.certResolver=letsencrypt
+      - --entrypoints.websecure.http.tls.domains[0].main=${DOMAIN}
+      - --entrypoints.websecure.http.tls.domains[0].sans=*.mothership.${DOMAIN},*.${DOMAIN}
+      - --entrypoints.websecure.http.tls=true
+      - --log.level=DEBUG
+      - --providers.docker.exposedbydefault=true
+      - --providers.docker=true
+      - --serverstransport.insecureskipverify=true
+    container_name: traefik
+    env_file: .env
+    extra_hosts:
+      - host.docker.internal:172.17.0.1
+    hostname: traefik
+    image: traefik
+    labels:
+      - homepage.group=Mothership
+      - homepage.name=Traefik
+      - homepage.icon=traefik
+      - homepage.href=https://traefik.${DOMAIN}
+      - homepage.description=Reverse proxy for exposing apps via HTTPS
+      - homepage.widget.type=traefik
+      - homepage.widget.url=http://traefik:8080
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.dashboard.tls=true
+      - traefik.http.routers.dashboard.entrypoints=websecure
+      - traefik.http.routers.dashboard.service=api@internal
+    networks:
+      default: {}
+    ports:
+      - 80:80
+      - 8080:8080
+      - 443:443
+    restart: unless-stopped
+    volumes:
+      - /var/lib/mothership/letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+  watchtowerr:
+    container_name: watchtowerr
+    env_file: .env
+    environment:
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_DEBUG: "true"
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

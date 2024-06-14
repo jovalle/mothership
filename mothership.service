@@ -1,0 +1,21 @@
+# /etc/systemd/system/mothership.service
+
+[Unit]
+Description=Mothership Composition
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+Restart=no
+RestartSec=5
+TimeoutStartSec=600
+WorkingDirectory=/etc/mothership
+EnvironmentFile=/etc/mothership/.env
+ExecStartPre=/usr/bin/docker compose pull
+ExecStart=/usr/bin/docker compose up --remove-orphans
+ExecReload=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down -v
+
+[Install]
+WantedBy=multi-user.target
