@@ -75,6 +75,33 @@ services:
     restart: unless-stopped
     volumes:
       - /etc/mothership/docker/homepage:/app/config
+  grafana:
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    hostname: grafana
+    image: grafana/grafana
+    labels:
+      - homepage.group=Core
+      - homepage.name=Grafana
+      - homepage.icon=grafana
+      - homepage.href=https://grafana.${DOMAIN}/d/rYdddlPWk/node-exporter-full
+      - homepage.description=Metrics Visualizer
+      - homepage.widget.type=grafana
+      - homepage.widget.url=http://grafana:3000
+      - homepage.widget.username=${GRAFANA_USER}
+      - homepage.widget.password=${GRAFANA_PASSWORD}
+      - homepage.widget.fields=["dashboards", "datasources", "totalalerts", "alertstriggered"]
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    volumes:
+      - /etc/mothership/docker/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - /etc/mothership/docker/grafana/dashboards:/var/lib/grafana/dashboards
+      - /etc/mothership/docker/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
   lidarr:
     container_name: lidarr
     depends_on:
@@ -101,6 +128,40 @@ services:
       - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
       - ${MUSIC_PATH:-/var/lib/mothership/music}:/music
       - /var/lib/mothership/lidarr:/config
+  node-exporter:
+    command: --path.rootfs=/host
+    container_name: node-exporter
+    hostname: node-exporter
+    image: quay.io/prometheus/node-exporter
+    ports:
+      - 9100:9100
+    restart: unless-stopped
+    volumes:
+      - /:/host:ro,rslave
+  prometheus:
+    command: --config.file=/etc/prometheus/prometheus.yaml
+    container_name: prometheus
+    extra_hosts:
+      - host.docker.internal:172.17.0.1
+    hostname: prometheus
+    image: prom/prometheus
+    labels:
+      - homepage.group=Core
+      - homepage.name=Prometheus
+      - homepage.icon=prometheus
+      - homepage.href=https://prometheus.${DOMAIN}/targets
+      - homepage.description=Metrics Gatherer
+      - homepage.widget.type=prometheus
+      - homepage.widget.url=http://prometheus:9090
+      - homepage.widget.fields=["targets_up", "targets_down", "targets_total"]
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    volumes:
+      - /etc/mothership/docker/prometheus:/etc/prometheus
+      - /var/lib/mothership/prometheus/data:/prometheus
   overseerr:
     container_name: overseerr
     env_file: .env
