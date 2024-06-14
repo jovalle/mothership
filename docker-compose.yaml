@@ -14,6 +14,55 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+  flaresolverr:
+    container_name: flaresolverr
+    env_file: .env
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+    hostname: flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)
+    ports:
+      - 8191:8191
+    restart: unless-stopped
+    volumes:
+      - /var/lib/mothership/flaresolverr:/config
+  gluetun:
+    cap_add:
+      - NET_ADMIN
+    container_name: gluetun
+    env_file: .env
+    environment:
+      - OPENVPN_PASSWORD="${OPENVPN_PASSWORD}"
+      - OPENVPN_USER="${OPENVPN_USER}"
+      - SERVER_NAMES="newyork434,newyork435,newyork439,newyork440"
+      - VPN_SERVICE_PROVIDER=private internet access
+    hostname: gluetun
+    image: qmcgaw/gluetun
+    labels:
+      - homepage.group=Core
+      - homepage.name=Gluetun
+      - homepage.icon=gluetun
+      - homepage.href=https://gluetun.${DOMAIN}/v1/publicip/ip
+      - homepage.description=VPN server for containers
+      - homepage.widget.type=gluetun
+      - homepage.widget.url=http://gluetun:8000
+      - homepage.widget.fields=["public_ip", "region", "country"]
+      - traefik.enable=true
+      - traefik.http.routers.gluetun.rule=Host(`gluetun.${DOMAIN}`)
+      - traefik.http.services.gluetun.loadbalancer.server.port=8000
+    ports:
+      - 10095:10095
+      - 6881:6881
+      - 6881:6881/udp
+    restart: always
+    volumes:
+      - /dev/net/tun:/dev/net/tun
+      - /var/lib/mothership/gluetun:/config
   homepage:
     container_name: homepage
     env_file: .env
@@ -26,6 +75,53 @@ services:
     restart: unless-stopped
     volumes:
       - /etc/mothership/docker/homepage:/app/config
+  lidarr:
+    container_name: lidarr
+    depends_on:
+      - prowlarr
+      - qbittorrent
+    env_file: .env
+    hostname: lidarr
+    image: lscr.io/linuxserver/lidarr
+    labels:
+      - homepage.group=Media
+      - homepage.name=Lidarr
+      - homepage.icon=lidarr
+      - homepage.href=https://lidarr.${DOMAIN}
+      - homepage.description=Personal Music Curator
+      - homepage.widget.type=lidarr
+      - homepage.widget.url=http://lidarr:8686
+      - homepage.widget.key=${LIDARR_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.lidarr.rule=Host(`lidarr.${DOMAIN}`)
+    ports:
+      - 8686:8686
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - ${MUSIC_PATH:-/var/lib/mothership/music}:/music
+      - /var/lib/mothership/lidarr:/config
+  overseerr:
+    container_name: overseerr
+    env_file: .env
+    hostname: overseerr
+    image: lscr.io/linuxserver/overseerr
+    labels:
+      - homepage.group=Media
+      - homepage.name=Overseerr
+      - homepage.icon=overseerr
+      - homepage.href=https://overseerr.${DOMAIN}
+      - homepage.description=Media Server Request Management
+      - homepage.widget.type=overseerr
+      - homepage.widget.url=http://overseerr:5055
+      - homepage.widget.key=${OVERSEER_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.overseerr.rule=Host(`overseerr.${DOMAIN}`)
+    restart: unless-stopped
+    ports:
+      - 5055:5055
+    volumes:
+      - /var/lib/mothership/overseerr:/config
   portainer:
     command: -H unix:///var/run/docker.sock
     container_name: portainer
@@ -52,6 +148,130 @@ services:
     volumes:
       - /var/lib/mothership/portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
+  prowlarr:
+    container_name: prowlarr
+    env_file: .env
+    hostname: prowlarr
+    image: lscr.io/linuxserver/prowlarr
+    labels:
+      - homepage.group=Media
+      - homepage.name=Prowlarr
+      - homepage.icon=prowlarr
+      - homepage.href=https://prowlarr.${DOMAIN}
+      - homepage.description=*arr-based Indexer Manager
+      - homepage.widget.type=prowlarr
+      - homepage.widget.url=http://prowlarr:9696
+      - homepage.widget.key=${PROWLARR_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - /var/lib/mothership/prowlarr:/config
+  qbittorrent:
+    container_name: qbittorrent
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - WEBUI_PORT=10095
+    hostname: qbittorrent
+    image: lscr.io/linuxserver/qbittorrent
+    labels:
+      - homepage.group=Media
+      - homepage.name=qBittorrent
+      - homepage.icon=qbittorrent
+      - homepage.href=https://qbittorrent.${DOMAIN}
+      - homepage.description=BitTorrent client for ISOs
+      - homepage.widget.type=qbittorrent
+      - homepage.widget.url=http://gluetun:10095
+      - homepage.widget.username=${QBITTORRENT_USER}
+      - homepage.widget.password=${QBITTORRENT_PASSWORD}
+      - homepage.widget.fields=["download", "upload", "seed", "leech"]
+      - traefik.enable=true
+      - traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${DOMAIN}`)
+      - traefik.http.services.qbittorrent.loadbalancer.server.port=10095
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - /var/lib/mothership/qbittorrent:/config
+  radarr:
+    container_name: radarr
+    depends_on:
+      - prowlarr
+      - qbittorrent
+    env_file: .env
+    hostname: radarr
+    image: lscr.io/linuxserver/radarr
+    labels:
+      - homepage.group=Media
+      - homepage.name=Radarr
+      - homepage.icon=radarr
+      - homepage.href=https://radarr.${DOMAIN}
+      - homepage.description=Personal Movie Curator
+      - homepage.widget.type=radarr
+      - homepage.widget.url=http://radarr:7878
+      - homepage.widget.key=${RADARR_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - ${MOVIES_PATH:-/var/lib/mothership/movies}:/movies
+      - /var/lib/mothership/radarr:/config
+  sonarr:
+    container_name: sonarr
+    depends_on:
+      - prowlarr
+      - qbittorrent
+    env_file: .env
+    hostname: sonarr
+    image: lscr.io/linuxserver/sonarr
+    labels:
+      - homepage.group=Media
+      - homepage.name=Sonarr
+      - homepage.icon=sonarr
+      - homepage.href=https://sonarr.${DOMAIN}
+      - homepage.description=Personal TV Curator
+      - homepage.widget.type=sonarr
+      - homepage.widget.url=http://sonarr:8989
+      - homepage.widget.key=${SONARR_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - ${TVSHOWS_PATH:-/var/lib/mothership/tvshows}:/tv
+      - /var/lib/mothership/sonarr:/config
+  tautulli:
+    container_name: tautulli
+    env_file: .env
+    hostname: tautulli
+    image: lscr.io/linuxserver/tautulli
+    labels:
+      - homepage.group=Media
+      - homepage.name=Tautulli
+      - homepage.icon=tautulli
+      - homepage.href=https://tautulli.${DOMAIN}
+      - homepage.description=Media Server Companion
+      - homepage.widget.type=tautulli
+      - homepage.widget.url=http://tautulli:8181
+      - homepage.widget.key=${TAUTULLI_API_KEY}
+      - traefik.enable=true
+      - traefik.http.routers.tautulli.rule=Host(`tautulli.${DOMAIN}`)
+    ports:
+      - 8181:8181
+    restart: unless-stopped
+    volumes:
+      - /var/lib/mothership/tautulli:/config
   traefik:
     command:
       - --api.dashboard=true
@@ -101,6 +321,32 @@ services:
     volumes:
       - /var/lib/mothership/letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
+  unpackerr:
+    image: golift/unpackerr
+    container_name: unpackerr
+    env_file: .env
+    environment:
+      # General config
+      - UN_DEBUG=false
+      - UN_INTERVAL=2m
+      - UN_START_DELAY=1m
+      - UN_RETRY_DELAY=5m
+      - UN_MAX_RETRIES=3
+      - UN_PARALLEL=1
+      - UN_FILE_MODE=0644
+      - UN_DIR_MODE=0755
+      # Folder Config
+      - UN_FOLDER_0_PATH=/downloads
+      - UN_FOLDER_0_EXTRACT_PATH=/downloads
+      - UN_FOLDER_0_DELETE_AFTER=10m
+      - UN_FOLDER_0_DELETE_ORIGINAL=false
+      - UN_FOLDER_0_DELETE_FILES=false
+      - UN_FOLDER_0_MOVE_BACK=false
+    ports:
+      - 5656:5656
+    restart: unless-stopped
+    volumes:
+      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
   watchtowerr:
     container_name: watchtowerr
     env_file: .env
