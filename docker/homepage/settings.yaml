@@ -1,0 +1,23 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/latest/configs/settings
+# Icons sourced from: https://pictogrammers.com/library/mdi/
+theme: dark
+disableCollapse: true
+layout:
+  Core:
+    icon: mdi-server-network
+    style: row
+    columns: 4
+  Media:
+    icon: mdi-multimedia
+    useEqualHeights: true
+    style: row
+    columns: 4
+  Tools:
+    icon: mdi-tools
+    useEqualHeights: true
+    style: row
+    columns: 4
+  Bookmarks:
+    icon: mdi-bookmark-multiple

@@ -19,6 +19,13 @@ Running on a VM provisioned by [terraform](https://terraform.io), configured by 
 At the heart of the project is Docker, Docker Compose v2 to be specific. Makes for easy deployment to, and management of, a singular host.
 
 See `docker-compose.yaml` for the services deployed.
+
+## 🧰 Core Components
+
+- [Homepage](https://gethomepage.dev): Easily configurable dashboard with plugins for key services.
+
+![image](https://github.com/jovalle/watchtower/assets/47045210/6c11573d-08c5-414c-8814-f11e244b796d)
+
 ## 📋 Prerequisites
 
 ### Environment File

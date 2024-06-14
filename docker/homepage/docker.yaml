@@ -1,0 +1,15 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/latest/configs/docker/
+
+mothership:
+  host: mothership
+  port: 2375
+
+stargate:
+  host: stargate
+  port: 2375
+
+watchtower:
+  host: watchtower
+  port: 2375
