@@ -125,8 +125,8 @@ services:
       - 8686:8686
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
-      - ${MUSIC_PATH:-/var/lib/mothership/music}:/music
+      - /media/downloads:/downloads
+      - /media/music:/music
       - /var/lib/mothership/lidarr:/config
   node-exporter:
     command: --path.rootfs=/host
@@ -228,7 +228,7 @@ services:
       - 9696:9696
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - /media/downloads:/downloads
       - /var/lib/mothership/prowlarr:/config
   qbittorrent:
     container_name: qbittorrent
@@ -257,7 +257,7 @@ services:
     network_mode: "service:gluetun"
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - /media/downloads:/downloads
       - /var/lib/mothership/qbittorrent:/config
   radarr:
     container_name: radarr
@@ -282,8 +282,8 @@ services:
       - 7878:7878
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
-      - ${MOVIES_PATH:-/var/lib/mothership/movies}:/movies
+      - /media/downloads:/downloads
+      - /media/movies:/movies
       - /var/lib/mothership/radarr:/config
   sonarr:
     container_name: sonarr
@@ -308,8 +308,8 @@ services:
       - 8989:8989
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
-      - ${TVSHOWS_PATH:-/var/lib/mothership/tvshows}:/tv
+      - /media/downloads:/downloads
+      - /media/series:/series
       - /var/lib/mothership/sonarr:/config
   tautulli:
     container_name: tautulli

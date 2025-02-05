@@ -5,6 +5,7 @@
 .decrypted*
 .DS_Store
 .env
+.smb-credentials
 .task
 .venv
 .vscode
