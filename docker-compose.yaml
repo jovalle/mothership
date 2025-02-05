@@ -333,6 +333,27 @@ services:
       - /media/downloads:/downloads
       - /media/series:/series
       - /var/lib/mothership/sonarr:/config
+  syncthing:
+    container_name: syncthing
+    env_file: .env
+    hostname: syncthing
+    image: lscr.io/linuxserver/syncthing
+    labels:
+      - homepage.group=Core
+      - homepage.name=syncthing
+      - homepage.icon=syncthing
+      - homepage.href=https://syncthing.${DOMAIN}
+      - homepage.description=Workspace Data Sync
+      - traefik.enable=true
+      - traefik.http.routers.syncthing.rule=Host(`syncthing.${DOMAIN}`)
+    ports:
+      - 8384:8384
+      - 21027:21027/udp
+      - 22000:22000/tcp
+      - 22000:22000/udp
+    restart: unless-stopped
+    volumes:
+      - /var/lib/mothership/syncthing:/config
   tautulli:
     container_name: tautulli
     env_file: .env
