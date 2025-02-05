@@ -138,51 +138,27 @@ services:
     restart: unless-stopped
     volumes:
       - /:/host:ro,rslave
-  prometheus:
-    command: --config.file=/etc/prometheus/prometheus.yaml
-    container_name: prometheus
-    extra_hosts:
-      - host.docker.internal:172.17.0.1
-    hostname: prometheus
-    image: prom/prometheus
-    labels:
-      - homepage.group=Core
-      - homepage.name=Prometheus
-      - homepage.icon=prometheus
-      - homepage.href=https://prometheus.${DOMAIN}/targets
-      - homepage.description=Metrics Gatherer
-      - homepage.widget.type=prometheus
-      - homepage.widget.url=http://prometheus:9090
-      - homepage.widget.fields=["targets_up", "targets_down", "targets_total"]
-      - traefik.enable=true
-      - traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)
-    ports:
-      - 9090:9090
-    restart: unless-stopped
-    volumes:
-      - /etc/mothership/docker/prometheus:/etc/prometheus
-      - /var/lib/mothership/prometheus/data:/prometheus
-  overseerr:
-    container_name: overseerr
+  ombi:
+    container_name: ombi
     env_file: .env
-    hostname: overseerr
-    image: lscr.io/linuxserver/overseerr
+    hostname: ombi
+    image: lscr.io/linuxserver/ombi
     labels:
       - homepage.group=Media
-      - homepage.name=Overseerr
-      - homepage.icon=overseerr
-      - homepage.href=https://overseerr.${DOMAIN}
+      - homepage.name=ombi
+      - homepage.icon=ombi
+      - homepage.href=https://ombi.${DOMAIN}
       - homepage.description=Media Server Request Management
-      - homepage.widget.type=overseerr
-      - homepage.widget.url=http://overseerr:5055
-      - homepage.widget.key=${OVERSEER_API_KEY}
+      - homepage.widget.type=ombi
+      - homepage.widget.url=http://ombi:3579
+      - homepage.widget.key=${OMBI_API_KEY:-}
       - traefik.enable=true
-      - traefik.http.routers.overseerr.rule=Host(`overseerr.${DOMAIN}`)
-    restart: unless-stopped
+      - traefik.http.routers.ombi.rule=Host(`ombi.${DOMAIN}`)
     ports:
-      - 5055:5055
+      - 3579:3579
+    restart: unless-stopped
     volumes:
-      - /var/lib/mothership/overseerr:/config
+      - /var/lib/mothership/ombi:/config
   portainer:
     command: -H unix:///var/run/docker.sock
     container_name: portainer
@@ -209,6 +185,29 @@ services:
     volumes:
       - /var/lib/mothership/portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
+  prometheus:
+    container_name: prometheus
+    extra_hosts:
+      - host.docker.internal:172.17.0.1
+    hostname: prometheus
+    image: prom/prometheus
+    labels:
+      - homepage.group=Core
+      - homepage.name=Prometheus
+      - homepage.icon=prometheus
+      - homepage.href=https://prometheus.${DOMAIN}/targets
+      - homepage.description=Metrics Gatherer
+      - homepage.widget.type=prometheus
+      - homepage.widget.url=http://prometheus:9090
+      - homepage.widget.fields=["targets_up", "targets_down", "targets_total"]
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    volumes:
+      - /etc/mothership/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - /var/lib/mothership/prometheus:/prometheus # mkdir; chown 65534:65534
   prowlarr:
     container_name: prowlarr
     env_file: .env
