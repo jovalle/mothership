@@ -284,11 +284,34 @@ services:
       - /media/downloads:/downloads
       - /media/movies:/movies
       - /var/lib/mothership/radarr:/config
+  sabnzbd:
+    container_name: sabnzbd
+    env_file: .env
+    hostname: sabnzbd
+    image: lscr.io/linuxserver/sabnzbd
+    labels:
+      - homepage.group=Media
+      - homepage.name=sabnzbd
+      - homepage.icon=sabnzbd
+      - homepage.href=https://sabnzbd.${DOMAIN}
+      - homepage.description=Binary Newsreader
+      - homepage.widget.type=sabnzbd
+      - homepage.widget.url=http://sabnzbd:8080
+      - homepage.widget.key=${SABNZBD_API_KEY:-}
+      - traefik.enable=true
+      - traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${DOMAIN}`)
+    ports:
+      - 8081:8080
+    restart: unless-stopped
+    volumes:
+      - /media/downloads:/downloads
+      - /var/lib/mothership/sabnzbd:/config
   sonarr:
     container_name: sonarr
     depends_on:
       - prowlarr
       - qbittorrent
+      - sabnzbd
     env_file: .env
     hostname: sonarr
     image: lscr.io/linuxserver/sonarr
