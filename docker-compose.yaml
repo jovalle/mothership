@@ -18,9 +18,9 @@ services:
     container_name: flaresolverr
     env_file: .env
     environment:
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_HTML=${LOG_HTML:-false}
-      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
     hostname: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr
     labels:
@@ -63,18 +63,6 @@ services:
     volumes:
       - /dev/net/tun:/dev/net/tun
       - /var/lib/mothership/gluetun:/config
-  homepage:
-    container_name: homepage
-    env_file: .env
-    image: ghcr.io/gethomepage/homepage
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.homepage.rule=Host(`mothership.${DOMAIN}`)
-    ports:
-      - 3001:3000
-    restart: unless-stopped
-    volumes:
-      - /etc/mothership/docker/homepage:/app/config
   grafana:
     container_name: grafana
     environment:
@@ -92,7 +80,7 @@ services:
       - homepage.widget.url=http://grafana:3000
       - homepage.widget.username=${GRAFANA_USER}
       - homepage.widget.password=${GRAFANA_PASSWORD}
-      - homepage.widget.fields=["dashboards", "datasources", "totalalerts", "alertstriggered"]
+      - homepage.widget.fields=["dashboards","datasources","totalalerts","alertstriggered"]
       - traefik.enable=true
       - traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)
     ports:
@@ -102,6 +90,18 @@ services:
       - /etc/mothership/docker/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
       - /etc/mothership/docker/grafana/dashboards:/var/lib/grafana/dashboards
       - /etc/mothership/docker/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+  homepage:
+    container_name: homepage
+    env_file: .env
+    image: ghcr.io/gethomepage/homepage
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.homepage.rule=Host(`mothership.${DOMAIN}`)
+    ports:
+      - 3001:3000
+    restart: unless-stopped
+    volumes:
+      - /etc/mothership/docker/homepage:/app/config
   lidarr:
     container_name: lidarr
     depends_on:
@@ -118,7 +118,7 @@ services:
       - homepage.description=Personal Music Curator
       - homepage.widget.type=lidarr
       - homepage.widget.url=http://lidarr:8686
-      - homepage.widget.key=${LIDARR_API_KEY}
+      - homepage.widget.key=${LIDARR_API_KEY:-}
       - traefik.enable=true
       - traefik.http.routers.lidarr.rule=Host(`lidarr.${DOMAIN}`)
     ports:
@@ -174,7 +174,7 @@ services:
       - homepage.widget.type=portainer
       - homepage.widget.env=1
       - homepage.widget.url=https://portainer.${DOMAIN}
-      - homepage.widget.key=${PORTAINER_API_KEY}
+      - homepage.widget.key=${PORTAINER_API_KEY:-}
       - homepage.widget.fields=["running", "stopped", "total"]
       - traefik.enable=true
       - traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN}`)
@@ -221,7 +221,7 @@ services:
       - homepage.description=*arr-based Indexer Manager
       - homepage.widget.type=prowlarr
       - homepage.widget.url=http://prowlarr:9696
-      - homepage.widget.key=${PROWLARR_API_KEY}
+      - homepage.widget.key=${PROWLARR_API_KEY:-}
       - traefik.enable=true
       - traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)
     ports:
@@ -238,7 +238,6 @@ services:
     env_file: .env
     environment:
       - WEBUI_PORT=10095
-    hostname: qbittorrent
     image: lscr.io/linuxserver/qbittorrent
     labels:
       - homepage.group=Media
@@ -275,7 +274,7 @@ services:
       - homepage.description=Personal Movie Curator
       - homepage.widget.type=radarr
       - homepage.widget.url=http://radarr:7878
-      - homepage.widget.key=${RADARR_API_KEY}
+      - homepage.widget.key=${RADARR_API_KEY:-}
       - traefik.enable=true
       - traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)
     ports:
@@ -298,10 +297,10 @@ services:
       - homepage.name=Sonarr
       - homepage.icon=sonarr
       - homepage.href=https://sonarr.${DOMAIN}
-      - homepage.description=Personal TV Curator
+      - homepage.description=Personal Series Curator
       - homepage.widget.type=sonarr
       - homepage.widget.url=http://sonarr:8989
-      - homepage.widget.key=${SONARR_API_KEY}
+      - homepage.widget.key=${SONARR_API_KEY:-}
       - traefik.enable=true
       - traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)
     ports:
@@ -324,7 +323,7 @@ services:
       - homepage.description=Media Server Companion
       - homepage.widget.type=tautulli
       - homepage.widget.url=http://tautulli:8181
-      - homepage.widget.key=${TAUTULLI_API_KEY}
+      - homepage.widget.key=${TAUTULLI_API_KEY:-}
       - traefik.enable=true
       - traefik.http.routers.tautulli.rule=Host(`tautulli.${DOMAIN}`)
     ports:
@@ -382,7 +381,6 @@ services:
       - /var/lib/mothership/letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
   unpackerr:
-    image: golift/unpackerr
     container_name: unpackerr
     env_file: .env
     environment:
@@ -402,18 +400,19 @@ services:
       - UN_FOLDER_0_DELETE_ORIGINAL=false
       - UN_FOLDER_0_DELETE_FILES=false
       - UN_FOLDER_0_MOVE_BACK=false
+    image: golift/unpackerr
     ports:
       - 5656:5656
     restart: unless-stopped
     volumes:
-      - ${DOWNLOADS_PATH:-/var/lib/mothership/downloads}:/downloads
+      - /media/downloads:/downloads
   watchtowerr:
     container_name: watchtowerr
     env_file: .env
     environment:
-      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
       WATCHTOWER_CLEANUP: "true"
       WATCHTOWER_DEBUG: "true"
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
     image: containrrr/watchtower
     restart: unless-stopped
     volumes:
