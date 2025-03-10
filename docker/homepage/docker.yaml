@@ -3,13 +3,13 @@
 # https://gethomepage.dev/latest/configs/docker/
 
 mothership:
-  host: mothership.technis.net
+  host: mothership
   port: 2375
 
 stargate:
-  host: stargate.technis.net
+  host: stargate
   port: 2375
 
 watchtower:
-  host: watchtower.technis.net
+  host: watchtower
   port: 2375

@@ -30,7 +30,7 @@ services:
       - 8191:8191
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/flaresolverr:/config
+      - ./docker/flaresolverr:/config
   gluetun:
     cap_add:
       - NET_ADMIN
@@ -62,7 +62,7 @@ services:
     restart: always
     volumes:
       - /dev/net/tun:/dev/net/tun
-      - /var/lib/mothership/gluetun:/config
+      - ./docker/gluetun:/config
   grafana:
     container_name: grafana
     environment:
@@ -127,7 +127,7 @@ services:
     volumes:
       - /media/downloads:/downloads
       - /media/music:/music
-      - /var/lib/mothership/lidarr:/config
+      - ./docker/lidarr:/config
   node-exporter:
     command: --path.rootfs=/host
     container_name: node-exporter
@@ -158,7 +158,7 @@ services:
       - 3579:3579
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/ombi:/config
+      - ./docker/ombi:/config
   portainer:
     command: -H unix:///var/run/docker.sock
     container_name: portainer
@@ -183,7 +183,7 @@ services:
       - 9000:9000
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/portainer:/data
+      - ./docker/portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
   prometheus:
     container_name: prometheus
@@ -206,8 +206,8 @@ services:
       - 9090:9090
     restart: unless-stopped
     volumes:
-      - /etc/mothership/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - /var/lib/mothership/prometheus:/prometheus # mkdir; chown 65534:65534
+      - ./docker/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/data:/prometheus # mkdir; chown 65534:65534
   prowlarr:
     container_name: prowlarr
     env_file: .env
@@ -229,7 +229,7 @@ services:
     restart: unless-stopped
     volumes:
       - /media/downloads:/downloads
-      - /var/lib/mothership/prowlarr:/config
+      - ./docker/prowlarr:/config
   qbittorrent:
     container_name: qbittorrent
     depends_on:
@@ -257,7 +257,7 @@ services:
     restart: unless-stopped
     volumes:
       - /media/downloads:/downloads
-      - /var/lib/mothership/qbittorrent:/config
+      - ./docker/qbittorrent:/config
   radarr:
     container_name: radarr
     depends_on:
@@ -283,7 +283,7 @@ services:
     volumes:
       - /media/downloads:/downloads
       - /media/movies:/movies
-      - /var/lib/mothership/radarr:/config
+      - ./docker/radarr:/config
   sabnzbd:
     container_name: sabnzbd
     env_file: .env
@@ -305,7 +305,7 @@ services:
     restart: unless-stopped
     volumes:
       - /media/downloads:/downloads
-      - /var/lib/mothership/sabnzbd:/config
+      - ./docker/sabnzbd:/config
   sonarr:
     container_name: sonarr
     depends_on:
@@ -332,7 +332,7 @@ services:
     volumes:
       - /media/downloads:/downloads
       - /media/series:/series
-      - /var/lib/mothership/sonarr:/config
+      - ./docker/sonarr:/config
   syncthing:
     container_name: syncthing
     env_file: .env
@@ -353,7 +353,7 @@ services:
       - 22000:22000/udp
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/syncthing:/config
+      - ./docker/syncthing:/config
   tautulli:
     container_name: tautulli
     env_file: .env
@@ -374,7 +374,7 @@ services:
       - 8181:8181
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/tautulli:/config
+      - ./docker/tautulli:/config
   traefik:
     command:
       - --api.dashboard=true
@@ -414,15 +414,13 @@ services:
       - traefik.http.routers.dashboard.tls=true
       - traefik.http.routers.dashboard.entrypoints=websecure
       - traefik.http.routers.dashboard.service=api@internal
-    networks:
-      default: {}
     ports:
       - 80:80
       - 8080:8080
       - 443:443
     restart: unless-stopped
     volumes:
-      - /var/lib/mothership/letsencrypt:/letsencrypt
+      - ./docker/letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
   unpackerr:
     container_name: unpackerr
