@@ -1,461 +1,480 @@
----
+networks:
+  db:
+    driver: bridge
+  homepage:
+    driver: bridge
+  monitoring:
+    driver: bridge
+  traefik:
+    driver: bridge
 services:
   docker-socket-proxy:
     container_name: proxy
     environment:
-      - CONTAINERS=1
-      - POST=0
-      - SERVICES=1
-      - TASKS=1
-    hostname: proxy
+      CONTAINERS: 1
+      POST: 0
+      SERVICES: 1
+      TASKS: 1
     image: ghcr.io/tecnativa/docker-socket-proxy
     ports:
       - 0.0.0.0:2375:2375
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-  flaresolverr:
-    container_name: flaresolverr
-    env_file: .env
-    environment:
-      - LOG_LEVEL=info
-      - LOG_HTML=false
-      - CAPTCHA_SOLVER=none
-    hostname: flaresolverr
-    image: ghcr.io/flaresolverr/flaresolverr
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.flaresolverr.rule=Host(`flaresolverr.${DOMAIN}`)
-    ports:
-      - 8191:8191
-    restart: unless-stopped
-    volumes:
-      - ./docker/flaresolverr:/config
-  gluetun:
-    cap_add:
-      - NET_ADMIN
-    container_name: gluetun
-    env_file: .env
-    environment:
-      - OPENVPN_PASSWORD="${OPENVPN_PASSWORD}"
-      - OPENVPN_USER="${OPENVPN_USER}"
-      - SERVER_NAMES="newyork434,newyork435,newyork439,newyork440"
-      - VPN_SERVICE_PROVIDER=private internet access
-    hostname: gluetun
-    image: qmcgaw/gluetun
-    labels:
-      - homepage.group=Core
-      - homepage.name=Gluetun
-      - homepage.icon=gluetun
-      - homepage.href=https://gluetun.${DOMAIN}/v1/publicip/ip
-      - homepage.description=VPN server for containers
-      - homepage.widget.type=gluetun
-      - homepage.widget.url=http://gluetun:8000
-      - homepage.widget.fields=["public_ip", "region", "country"]
-      - traefik.enable=true
-      - traefik.http.routers.gluetun.rule=Host(`gluetun.${DOMAIN}`)
-      - traefik.http.services.gluetun.loadbalancer.server.port=8000
-    ports:
-      - 10095:10095
-      - 6881:6881
-      - 6881:6881/udp
-    restart: always
-    volumes:
-      - /dev/net/tun:/dev/net/tun
-      - ./docker/gluetun:/config
   grafana:
     container_name: grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-    hostname: grafana
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
     image: grafana/grafana
     labels:
-      - homepage.group=Core
-      - homepage.name=Grafana
-      - homepage.icon=grafana
-      - homepage.href=https://grafana.${DOMAIN}/d/rYdddlPWk/node-exporter-full
-      - homepage.description=Metrics Visualizer
-      - homepage.widget.type=grafana
-      - homepage.widget.url=http://grafana:3000
-      - homepage.widget.username=${GRAFANA_USER}
-      - homepage.widget.password=${GRAFANA_PASSWORD}
-      - homepage.widget.fields=["dashboards","datasources","totalalerts","alertstriggered"]
-      - traefik.enable=true
-      - traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)
+      homepage.description: Metrics Visualizer
+      homepage.group: Core
+      homepage.href: https://grafana.${DOMAIN:-home.arpa}/d/rYdddlPWk/node-exporter-full
+      homepage.icon: grafana
+      homepage.name: Grafana
+      homepage.widget.fields: '["dashboards","datasources","totalalerts","alertstriggered"]'
+      homepage.widget.password: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      homepage.widget.type: grafana
+      homepage.widget.url: http://grafana:3000
+      homepage.widget.username: "${GRAFANA_ADMIN_USERNAME:-admin}"
+      traefik.enable: true
+      traefik.http.routers.grafana.rule: Host(`grafana.${DOMAIN:-home.arpa}`)
+    networks:
+      - homepage
+      - monitoring
+      - traefik
     ports:
       - 3000:3000
     restart: unless-stopped
     volumes:
-      - /etc/mothership/docker/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
-      - /etc/mothership/docker/grafana/dashboards:/var/lib/grafana/dashboards
-      - /etc/mothership/docker/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ${VOLUME_PATH:-./docker}/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ${VOLUME_PATH:-./docker}/grafana/dashboards:/var/lib/grafana/dashboards
+      - ${VOLUME_PATH:-./docker}/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+  homebox:
+    container_name: homebox
+    environment:
+      HBOX_LOG_LEVEL: info
+      HBOX_WEB_MAX_UPLOAD_SIZE: 10
+    image: ghcr.io/sysadminsmedia/homebox
+    labels:
+      homepage.description: Home inventory management
+      homepage.group: Home
+      homepage.href: https://homebox.${DOMAIN:-home.arpa}
+      homepage.icon: homebox
+      homepage.name: Homebox
+      traefik.enable: true
+      traefik.http.routers.homebox.rule: Host(`homebox.${DOMAIN:-home.arpa}`)
+    networks:
+      - homepage
+      - traefik
+    ports:
+      - 7745:7745
+    restart: unless-stopped
+    volumes:
+      - ${VOLUME_PATH:-./docker}/homebox:/data
   homepage:
     container_name: homepage
-    env_file: .env
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.${DOMAIN:-home.arpa}"
     image: ghcr.io/gethomepage/homepage
     labels:
       - traefik.enable=true
-      - traefik.http.routers.homepage.rule=Host(`mothership.${DOMAIN}`)
+      - traefik.http.routers.homepage.rule=Host(`homepage.${DOMAIN:-home.arpa}`)
+      - traefik.http.services.homepage.loadbalancer.server.port=3000
+    networks:
+      - homepage
+      - traefik
     ports:
-      - 3001:3000
+      - "3001:3000"
     restart: unless-stopped
     volumes:
-      - /etc/mothership/docker/homepage:/app/config
-  lidarr:
-    container_name: lidarr
+      - ${VOLUME_PATH:-./docker}/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+  immich:
+    container_name: immich
     depends_on:
-      - prowlarr
-      - qbittorrent
-    env_file: .env
-    hostname: lidarr
-    image: lscr.io/linuxserver/lidarr
+      - redis
+      - postgres
+    environment:
+      - DB_HOSTNAME=postgres
+      - DB_USERNAME=${IMMICH_DB_USER}
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD}
+      - DB_DATABASE_NAME=${IMMICH_DB_NAME}
+      - REDIS_HOSTNAME=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DBINDEX=0
+      - UPLOAD_LOCATION=/usr/src/app/upload
+      - IMMICH_VERSION=${IMMICH_VERSION:-release}
+      - NODE_ENV=production
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     labels:
-      - homepage.group=Media
-      - homepage.name=Lidarr
-      - homepage.icon=lidarr
-      - homepage.href=https://lidarr.${DOMAIN}
-      - homepage.description=Personal Music Curator
-      - homepage.widget.type=lidarr
-      - homepage.widget.url=http://lidarr:8686
-      - homepage.widget.key=${LIDARR_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.lidarr.rule=Host(`lidarr.${DOMAIN}`)
+      homepage.description: Photo management and backup
+      homepage.group: Media
+      homepage.href: https://photos.${DOMAIN:-home.arpa}
+      homepage.icon: immich
+      homepage.name: Immich
+      homepage.widget.key: ${IMMICH_API_KEY:-}
+      homepage.widget.type: immich
+      homepage.widget.url: http://immich:2283
+      homepage.widget.version: 2
+      traefik.enable: true
+      traefik.http.routers.immich.rule: Host(`photos.${DOMAIN:-home.arpa}`)
+    networks:
+      - db
+      - homepage
+      - traefik
     ports:
-      - 8686:8686
+      - 2283:2283
     restart: unless-stopped
     volumes:
-      - /media/downloads:/downloads
-      - /media/music:/music
-      - ./docker/lidarr:/config
-  node-exporter:
-    command: --path.rootfs=/host
-    container_name: node-exporter
-    hostname: node-exporter
-    image: quay.io/prometheus/node-exporter
-    ports:
-      - 9100:9100
+      - ${VOLUME_PATH:-./docker}/immich/upload:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+  immich-machine-learning:
+    container_name: immich-machine-learning
+    environment:
+      - DB_HOSTNAME=postgres
+      - DB_USERNAME=${IMMICH_DB_USER}
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD}
+      - DB_DATABASE_NAME=${IMMICH_DB_NAME}
+      - IMMICH_VERSION=${IMMICH_VERSION:-release}
+      - NODE_ENV=production
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    networks:
+      - db
     restart: unless-stopped
     volumes:
-      - /:/host:ro,rslave
-  ombi:
-    container_name: ombi
-    env_file: .env
-    hostname: ombi
-    image: lscr.io/linuxserver/ombi
+      - ${VOLUME_PATH:-./docker}/immich/cache:/cache
+  loki:
+    container_name: loki
+    image: grafana/loki
+    networks:
+      - monitoring
+    ports:
+      - 3103:3100
+    restart: unless-stopped
+    volumes:
+      - ${VOLUME_PATH:-./docker}/loki:/loki
+  nextcloud:
+    container_name: nextcloud
+    depends_on:
+      - postgres
+    environment:
+      NEXTCLOUD_ADMIN_PASSWORD: "${NEXTCLOUD_ADMIN_PASSWORD:-admin}"
+      NEXTCLOUD_ADMIN_USER: "${NEXTCLOUD_ADMIN_USER:-admin}"
+      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.${DOMAIN:-home.arpa}"
+      OVERWRITEPROTOCOL: https
+      POSTGRES_DB: nextcloud
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: "${NEXTCLOUD_DB_PASSWORD:-nextcloud}"
+      POSTGRES_USER: nextcloud
+    hostname: nextcloud
+    image: nextcloud
     labels:
-      - homepage.group=Media
-      - homepage.name=ombi
-      - homepage.icon=ombi
-      - homepage.href=https://ombi.${DOMAIN}
-      - homepage.description=Media Server Request Management
-      - homepage.widget.type=ombi
-      - homepage.widget.url=http://ombi:3579
-      - homepage.widget.key=${OMBI_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.ombi.rule=Host(`ombi.${DOMAIN}`)
+      homepage.description: Cloud storage and collaboration
+      homepage.group: Storage
+      homepage.href: "https://nextcloud.${DOMAIN:-home.arpa}"
+      homepage.icon: nextcloud
+      homepage.name: Nextcloud
+      homepage.widget.password: "${NEXTCLOUD_ADMIN_PASSWORD:-admin}"
+      homepage.widget.type: nextcloud
+      homepage.widget.url: "https://nextcloud.${DOMAIN:-home.arpa}"
+      homepage.widget.username: "${NEXTCLOUD_ADMIN_USER:-admin}"
+      traefik.enable: true
+      traefik.http.middlewares.nextcloud-dav.replacepathregex.regex: "^/.well-known/ca(l|rd)dav"
+      traefik.http.middlewares.nextcloud-dav.replacepathregex.replacement: "/remote.php/dav/"
+      traefik.http.routers.nextcloud.entrypoints: websecure
+      traefik.http.routers.nextcloud.middlewares: nextcloud-dav
+      traefik.http.routers.nextcloud.rule: Host(`nextcloud.${DOMAIN:-home.arpa}`)
+      traefik.http.routers.nextcloud.tls.certresolver: letsencrypt
+      traefik.http.services.nextcloud.loadbalancer.server.port: 80
+    networks:
+      - db
+      - homepage
+      - traefik
     ports:
-      - 3579:3579
+      - "8084:80"
     restart: unless-stopped
     volumes:
-      - ./docker/ombi:/config
+      - ${VOLUME_PATH:-./docker}/nextcloud:/var/www/html
+      - ${DATA_PATH:-/mnt/data}/nextcloud:/var/www/html/data
+  pgadmin:
+    container_name: pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "True"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-${POSTGRES_ROOT_PASSWORD}}
+    image: dpage/pgadmin4
+    labels:
+      homepage.description: PostgreSQL Management Tool
+      homepage.group: Data
+      homepage.href: https://pgadmin.${DOMAIN:-home.arpa}
+      homepage.icon: postgres
+      homepage.name: Postgres
+      traefik.enable: true
+      traefik.http.routers.pgadmin.rule: Host(`pgadmin.${DOMAIN:-home.arpa}`)
+    networks:
+      - db
+      - traefik
+    ports:
+      - 5050:80
+    restart: unless-stopped
+    user: "5050:5050"
+    volumes:
+      - ${VOLUME_PATH:-./docker}/pgadmin/pgpass:/tmp/pgpass:ro
+      - ${VOLUME_PATH:-./docker}/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ${VOLUME_PATH:-./docker}/pgadmin/data:/var/lib/pgadmin
   portainer:
-    command: -H unix:///var/run/docker.sock
+    command: -H unix:///var/run/docker.sock --admin-password "${PORTAINER_ADMIN_PASSWORD_HASH:-}"
     container_name: portainer
-    env_file: .env
-    hostname: portainer
     image: portainer/portainer-ce
     labels:
-      - homepage.group=Mothership
-      - homepage.name=Portainer
-      - homepage.icon=portainer
-      - homepage.href=https://portainer.${DOMAIN}
-      - homepage.description=Container management
-      - homepage.widget.type=portainer
-      - homepage.widget.env=1
-      - homepage.widget.url=https://portainer.${DOMAIN}
-      - homepage.widget.key=${PORTAINER_API_KEY:-}
-      - homepage.widget.fields=["running", "stopped", "total"]
-      - traefik.enable=true
-      - traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN}`)
-      - traefik.http.services.portainer.loadbalancer.server.port=9000
+      homepage.description: Container Management
+      homepage.group: Watchtower
+      homepage.href: https://portainer.${DOMAIN:-home.arpa}
+      homepage.icon: portainer
+      homepage.name: Portainer
+      homepage.widget.env: 1
+      homepage.widget.fields: '["running", "stopped", "total"]'
+      homepage.widget.key: "${PORTAINER_API_KEY:-}"
+      homepage.widget.type: portainer
+      homepage.widget.url: http://portainer:9000
+      traefik.enable: true
+      traefik.http.routers.portainer.rule: Host(`portainer.${DOMAIN:-home.arpa}`)
+    networks:
+      - homepage
+      - traefik
     ports:
       - 9000:9000
     restart: unless-stopped
     volumes:
-      - ./docker/portainer:/data
+      - ${VOLUME_PATH:-./docker}/portainer:/config
       - /var/run/docker.sock:/var/run/docker.sock
+  postgres:
+    container_name: postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--encoding: UTF8"
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      POSTGRES_USER: postgres
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_period: 30s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      timeout: 10s
+    image: pgvector/pgvector:pg16
+    networks:
+      - db
+    ports:
+      - 5432:5432
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${VOLUME_PATH:-./docker}/postgres/data:/var/lib/postgresql/data
   prometheus:
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=3650d"
+      - "--web.enable-lifecycle"
     container_name: prometheus
-    extra_hosts:
-      - host.docker.internal:172.17.0.1
-    hostname: prometheus
+    environment:
+      PROMETHEUS_RETENTION_TIME: 3650d
     image: prom/prometheus
     labels:
-      - homepage.group=Core
-      - homepage.name=Prometheus
-      - homepage.icon=prometheus
-      - homepage.href=https://prometheus.${DOMAIN}/targets
-      - homepage.description=Metrics Gatherer
-      - homepage.widget.type=prometheus
-      - homepage.widget.url=http://prometheus:9090
-      - homepage.widget.fields=["targets_up", "targets_down", "targets_total"]
-      - traefik.enable=true
-      - traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)
+      homepage.description: Metrics collection
+      homepage.group: Monitoring
+      homepage.href: https://prometheus.${DOMAIN:-home.arpa}
+      homepage.icon: prometheus
+      homepage.name: Prometheus
+      homepage.widget.type: prometheus
+      homepage.widget.url: http://prometheus:9090
+      traefik.enable: true
+      traefik.http.routers.prometheus.rule: Host(`prometheus.${DOMAIN:-home.arpa}`)
+    networks:
+      - homepage
+      - monitoring
+      - traefik
     ports:
       - 9090:9090
     restart: unless-stopped
     volumes:
-      - ./docker/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./docker/prometheus/data:/prometheus # mkdir; chown 65534:65534
-  prowlarr:
-    container_name: prowlarr
-    env_file: .env
-    hostname: prowlarr
-    image: lscr.io/linuxserver/prowlarr
-    labels:
-      - homepage.group=Media
-      - homepage.name=Prowlarr
-      - homepage.icon=prowlarr
-      - homepage.href=https://prowlarr.${DOMAIN}
-      - homepage.description=*arr-based Indexer Manager
-      - homepage.widget.type=prowlarr
-      - homepage.widget.url=http://prowlarr:9696
-      - homepage.widget.key=${PROWLARR_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)
-    ports:
-      - 9696:9696
-    restart: unless-stopped
-    volumes:
-      - /media/downloads:/downloads
-      - ./docker/prowlarr:/config
-  qbittorrent:
-    container_name: qbittorrent
-    depends_on:
-      gluetun:
-        condition: service_healthy
-    env_file: .env
+      - ${VOLUME_PATH:-./docker}/prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ${VOLUME_PATH:-./docker}/prometheus/data:/prometheus
+  promtail:
+    command: -config.file=/etc/promtail/config.yml
+    container_name: promtail
     environment:
-      - WEBUI_PORT=10095
-    image: lscr.io/linuxserver/qbittorrent
-    labels:
-      - homepage.group=Media
-      - homepage.name=qBittorrent
-      - homepage.icon=qbittorrent
-      - homepage.href=https://qbittorrent.${DOMAIN}
-      - homepage.description=BitTorrent client for ISOs
-      - homepage.widget.type=qbittorrent
-      - homepage.widget.url=http://gluetun:10095
-      - homepage.widget.username=${QBITTORRENT_USER}
-      - homepage.widget.password=${QBITTORRENT_PASSWORD}
-      - homepage.widget.fields=["download", "upload", "seed", "leech"]
-      - traefik.enable=true
-      - traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.${DOMAIN}`)
-      - traefik.http.services.qbittorrent.loadbalancer.server.port=10095
-    network_mode: "service:gluetun"
+      PROMTAIL_CONFIG_FILE: /etc/promtail/config.yml
+    image: grafana/promtail
+    networks:
+      - monitoring
     restart: unless-stopped
     volumes:
-      - /media/downloads:/downloads
-      - ./docker/qbittorrent:/config
-  radarr:
-    container_name: radarr
-    depends_on:
-      - prowlarr
-      - qbittorrent
-    env_file: .env
-    hostname: radarr
-    image: lscr.io/linuxserver/radarr
-    labels:
-      - homepage.group=Media
-      - homepage.name=Radarr
-      - homepage.icon=radarr
-      - homepage.href=https://radarr.${DOMAIN}
-      - homepage.description=Personal Movie Curator
-      - homepage.widget.type=radarr
-      - homepage.widget.url=http://radarr:7878
-      - homepage.widget.key=${RADARR_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)
+      - ${VOLUME_PATH:-./docker}/promtail/data:/var/lib/promtail/positions
+      - ${VOLUME_PATH:-./docker}/promtail/promtail-config.yaml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+  redis:
+    command: >
+      redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfilename "appendonly.aof" --appendfsync everysec --save 60 1 --save 300 10 --save 900 100
+    container_name: redis
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "--no-auth-warning",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "ping",
+        ]
+      timeout: 5s
+    image: redis:${REDIS_VERSION:-7-alpine}
+    networks:
+      - db
     ports:
-      - 7878:7878
+      - 6379:6379
     restart: unless-stopped
     volumes:
-      - /media/downloads:/downloads
-      - /media/movies:/movies
-      - ./docker/radarr:/config
-  sabnzbd:
-    container_name: sabnzbd
-    env_file: .env
-    hostname: sabnzbd
-    image: lscr.io/linuxserver/sabnzbd
+      - ${VOLUME_PATH:-./docker}/redis:/data
+  scrutiny:
+    cap_add:
+      - SYS_RAWIO
+    container_name: scrutiny
+    devices:
+      - /dev/sda:ro
+      - /dev/sdb:ro
+      - /dev/sdc:ro
+      - /dev/sdd:ro
+      - /dev/sde:ro
+      - /dev/sdf:ro
+      - /dev/sdg:ro
+      - /dev/sdh:ro
+      - /dev/sdi:ro
+      - /dev/sdj:ro
+      - /dev/sdk:ro
+      - /dev/sdl:ro
+    environment:
+      SCRUTINY_WEB_LISTEN_HOST: 0.0.0.0
+      SCRUTINY_WEB_LISTEN_PORT: 8080
+    image: ghcr.io/analogj/scrutiny:master-omnibus
     labels:
-      - homepage.group=Media
-      - homepage.name=sabnzbd
-      - homepage.icon=sabnzbd
-      - homepage.href=https://sabnzbd.${DOMAIN}
-      - homepage.description=Binary Newsreader
-      - homepage.widget.type=sabnzbd
-      - homepage.widget.url=http://sabnzbd:8080
-      - homepage.widget.key=${SABNZBD_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.sabnzbd.rule=Host(`sabnzbd.${DOMAIN}`)
+      homepage.description: Hard drive health monitoring
+      homepage.group: System
+      homepage.href: https://scrutiny.${DOMAIN:-home.arpa}
+      homepage.icon: scrutiny
+      homepage.name: Scrutiny
+      homepage.widget.fields: '["passed", "failed", "unknown"]'
+      homepage.widget.type: scrutiny
+      homepage.widget.url: http://scrutiny:8080
+      traefik.enable: true
+      traefik.http.routers.scrutiny.rule: Host(`scrutiny.${DOMAIN:-home.arpa}`)
     ports:
-      - 8081:8080
+      - 8083:8080
     restart: unless-stopped
     volumes:
-      - /media/downloads:/downloads
-      - ./docker/sabnzbd:/config
-  sonarr:
-    container_name: sonarr
-    depends_on:
-      - prowlarr
-      - qbittorrent
-      - sabnzbd
-    env_file: .env
-    hostname: sonarr
-    image: lscr.io/linuxserver/sonarr
-    labels:
-      - homepage.group=Media
-      - homepage.name=Sonarr
-      - homepage.icon=sonarr
-      - homepage.href=https://sonarr.${DOMAIN}
-      - homepage.description=Personal Series Curator
-      - homepage.widget.type=sonarr
-      - homepage.widget.url=http://sonarr:8989
-      - homepage.widget.key=${SONARR_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)
-    ports:
-      - 8989:8989
-    restart: unless-stopped
-    volumes:
-      - /media/downloads:/downloads
-      - /media/series:/series
-      - ./docker/sonarr:/config
+      - ${VOLUME_PATH:-./docker}/scrutiny:/opt/scrutiny/config
+      - /run/udev:/run/udev:ro
   syncthing:
     container_name: syncthing
-    env_file: .env
-    hostname: syncthing
-    image: lscr.io/linuxserver/syncthing
+    image: syncthing/syncthing
     labels:
-      - homepage.group=Core
-      - homepage.name=syncthing
-      - homepage.icon=syncthing
-      - homepage.href=https://syncthing.${DOMAIN}
-      - homepage.description=Workspace Data Sync
-      - traefik.enable=true
-      - traefik.http.routers.syncthing.rule=Host(`syncthing.${DOMAIN}`)
+      homepage.description: "File synchronization"
+      homepage.group: "Storage"
+      homepage.href: "https://syncthing.${DOMAIN:-home.arpa}"
+      homepage.icon: "syncthing"
+      homepage.name: "Syncthing"
+      traefik.enable: "true"
+      traefik.http.routers.syncthing.rule: "Host(`syncthing.${DOMAIN:-home.arpa}`)"
+      traefik.http.services.syncthing.loadbalancer.server.port: 8384
+    networks:
+      - traefik
     ports:
       - 8384:8384
-      - 21027:21027/udp
       - 22000:22000/tcp
       - 22000:22000/udp
+      - 21027:21027/udp
     restart: unless-stopped
     volumes:
-      - ./docker/syncthing:/config
-  tautulli:
-    container_name: tautulli
-    env_file: .env
-    hostname: tautulli
-    image: lscr.io/linuxserver/tautulli
-    labels:
-      - homepage.group=Media
-      - homepage.name=Tautulli
-      - homepage.icon=tautulli
-      - homepage.href=https://tautulli.${DOMAIN}
-      - homepage.description=Media Server Companion
-      - homepage.widget.type=tautulli
-      - homepage.widget.url=http://tautulli:8181
-      - homepage.widget.key=${TAUTULLI_API_KEY:-}
-      - traefik.enable=true
-      - traefik.http.routers.tautulli.rule=Host(`tautulli.${DOMAIN}`)
-    ports:
-      - 8181:8181
-    restart: unless-stopped
-    volumes:
-      - ./docker/tautulli:/config
+      - ${VOLUME_PATH:-./docker}/syncthing:/var/syncthing
+      - ${DATA_PATH:-/mnt/data}/sync:/var/syncthing/Sync
   traefik:
     command:
       - --api.dashboard=true
       - --api.insecure=true
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.websecure.address=:443
-      - --entrypoints.websecure.http.tls.certResolver=letsencrypt
-      - --entrypoints.websecure.http.tls.domains[0].main=${DOMAIN}
-      - --entrypoints.websecure.http.tls.domains[0].sans=*.mothership.${DOMAIN},*.${DOMAIN}
       - --entrypoints.websecure.http.tls=true
+      - --entrypoints.websecure.http.tls.certResolver=letsencrypt
+      - --entrypoints.websecure.http.tls.domains[0].main=${DOMAIN:-home.arpa}
+      - --entrypoints.websecure.http.tls.domains[0].sans=*.${DOMAIN:-home.arpa},*.${DOMAIN:-home.arpa}
       - --log.level=DEBUG
       - --providers.docker.exposedbydefault=true
       - --providers.docker=true
       - --serverstransport.insecureskipverify=true
     container_name: traefik
-    env_file: .env
+    environment:
+      CLOUDFLARE_DNS_API_TOKEN: "${CLOUDFLARE_DNS_API_TOKEN:-}"
+      CLOUDFLARE_EMAIL: "${CLOUDFLARE_EMAIL:-}"
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL: "${TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL:-}"
     extra_hosts:
       - host.docker.internal:172.17.0.1
-    hostname: traefik
     image: traefik
     labels:
-      - homepage.group=Mothership
-      - homepage.name=Traefik
-      - homepage.icon=traefik
-      - homepage.href=https://traefik.${DOMAIN}
-      - homepage.description=Reverse proxy for exposing apps via HTTPS
-      - homepage.widget.type=traefik
-      - homepage.widget.url=http://traefik:8080
-      - traefik.enable=true
-      - traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)
-      - traefik.http.routers.dashboard.tls=true
-      - traefik.http.routers.dashboard.entrypoints=websecure
-      - traefik.http.routers.dashboard.service=api@internal
+      homepage.description: Reverse proxy for exposing apps via HTTPS
+      homepage.group: Watchtower
+      homepage.href: https://traefik.${DOMAIN:-home.arpa}
+      homepage.icon: traefik
+      homepage.name: Traefik
+      homepage.widget.type: traefik
+      homepage.widget.url: http://traefik:8080
+      traefik.enable: true
+      traefik.http.routers.dashboard.entrypoints: websecure
+      traefik.http.routers.dashboard.rule: Host(`traefik.${DOMAIN:-home.arpa}`)
+      traefik.http.routers.dashboard.service: api@internal
+      traefik.http.routers.dashboard.tls: true
+    networks:
+      - homepage
+      - traefik
     ports:
-      - 80:80
-      - 8080:8080
-      - 443:443
+      - 8080:80
+      - 8081:8080
+      - 8443:443
     restart: unless-stopped
     volumes:
-      - ./docker/letsencrypt:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock
-  unpackerr:
-    container_name: unpackerr
-    env_file: .env
-    environment:
-      # General config
-      - UN_DEBUG=false
-      - UN_INTERVAL=2m
-      - UN_START_DELAY=1m
-      - UN_RETRY_DELAY=5m
-      - UN_MAX_RETRIES=3
-      - UN_PARALLEL=1
-      - UN_FILE_MODE=0644
-      - UN_DIR_MODE=0755
-      # Folder Config
-      - UN_FOLDER_0_PATH=/downloads
-      - UN_FOLDER_0_EXTRACT_PATH=/downloads
-      - UN_FOLDER_0_DELETE_AFTER=10m
-      - UN_FOLDER_0_DELETE_ORIGINAL=false
-      - UN_FOLDER_0_DELETE_FILES=false
-      - UN_FOLDER_0_MOVE_BACK=false
-    image: golift/unpackerr
-    ports:
-      - 5656:5656
-    restart: unless-stopped
-    volumes:
-      - /media/downloads:/downloads
-  watchtowerr:
-    container_name: watchtowerr
-    env_file: .env
-    environment:
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_DEBUG: "true"
-      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
-    image: containrrr/watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${VOLUME_PATH:-./docker}/letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
