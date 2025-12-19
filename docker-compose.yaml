@@ -1,0 +1,435 @@
+# =============================================================================
+# Mothership - Hardened Traefik Stack with Full Security Suite
+# =============================================================================
+networks:
+  external:
+    external: true
+    name: external
+  internal:
+    driver: bridge
+services:
+
+  # ===========================================================================
+  # AdGuard Home - DNS
+  # ===========================================================================
+  adguard:
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    cap_drop:
+      - ALL
+    container_name: adguard
+    dns:
+      - 76.76.2.2
+      - 76.76.10.2
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1" ]
+      timeout: 10s
+    hostname: adguard
+    image: adguard/adguardhome:v0.107.71
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.adguard.middlewares: "internal@file"
+      traefik.http.routers.adguard.rule: "Host(`adguard.mothership.${DOMAIN}`)"
+      traefik.http.routers.adguard.service: "adguard"
+      traefik.http.services.adguard.loadbalancer.server.port: "80"
+    networks:
+      - external
+      - internal
+    ports:
+      - "${INTERNAL_IP:?internal IP not set}:53:53/tcp"
+      - "${INTERNAL_IP}:53:53/udp"
+      - "${INTERNAL_IP}:853:853/tcp"
+      - "${INTERNAL_IP}:853:853/udp"
+      - "${INTERNAL_IP}:3000:3000/tcp"
+      - "${INTERNAL_IP}:5443:5443/tcp"
+      - "${INTERNAL_IP}:5443:5443/udp"
+      - "${INTERNAL_IP}:6060:6060/tcp"
+      - "${INTERNAL_IP}:8843:443/tcp"
+      - "${INTERNAL_IP}:8880:80/tcp"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./docker/adguard/conf:/opt/adguardhome/conf
+      - ./docker/adguard/work:/opt/adguardhome/work
+
+  # ===========================================================================
+  # Authelia - Authentication & Authorization (1FA, 2FA, OIDC)
+  # ===========================================================================
+  authelia:
+    cap_drop:
+      - ALL
+    container_name: authelia
+    depends_on:
+      traefik:
+        condition: service_healthy
+    environment:
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: "${AUTHELIA_JWT_SECRET:?Authelia JWT secret required}"
+      AUTHELIA_SESSION_SECRET: "${AUTHELIA_SESSION_SECRET:?Authelia session secret required}"
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: "${AUTHELIA_STORAGE_ENCRYPTION_KEY:?Authelia storage encryption key required}"
+      DOMAIN: "${DOMAIN:?Domain required}"
+      TZ: "${TZ:-UTC}"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      test: [ "CMD", "wget", "-q", "-O-", "http://localhost:9091/api/health" ]
+      timeout: 10s
+    hostname: authelia
+    image: authelia/authelia:4.38
+    labels:
+      traefik.enable: "true"
+      # Main Authelia portal - bypass auth (it IS the auth)
+      traefik.http.routers.authelia.middlewares: "external-noauth@file"
+      traefik.http.routers.authelia.rule: "Host(`auth.${DOMAIN}`)"
+      traefik.http.services.authelia.loadbalancer.server.port: "9091"
+    networks:
+      - external
+      - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+    volumes:
+      - ./docker/authelia:/config
+
+  # ===========================================================================
+  # Cloudflared - Cloudflare Tunnel Client
+  # ===========================================================================
+  cloudflared:
+    cap_drop:
+      - ALL
+    command: tunnel --no-autoupdate run
+    container_name: cloudflared
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TOKEN:?no cloudflared token provided}
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_period: 60s
+      test: [ "CMD", "cloudflared", "version" ]
+      timeout: 10s
+    image: cloudflare/cloudflared
+    networks:
+      - internal
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    user: "65532:65532"
+
+  # ===========================================================================
+  # CrowdSec - Security Engine (IDS/IPS + WAF)
+  # ===========================================================================
+  crowdsec:
+    cap_add:
+      - NET_BIND_SERVICE
+    cap_drop:
+      - ALL
+    container_name: crowdsec
+    environment:
+      # Collections to install
+      # Bouncer key for Traefik plugin (will be generated on first run)
+      BOUNCER_KEY_TRAEFIK: "${CROWDSEC_BOUNCER_KEY:-}"
+      COLLECTIONS: >-
+        crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/whitelist-good-actors crowdsecurity/iptables crowdsecurity/linux
+      # Disable online API enrollment on first run (configure manually)
+      DISABLE_ONLINE_API: "false"
+      # Timezone
+      TZ: "${TZ:-UTC}"
+      # Enable AppSec (WAF)
+      USE_APPSEC: "true"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 60s
+      test: [ "CMD", "cscli", "version" ]
+      timeout: 10s
+    hostname: crowdsec
+    image: crowdsecurity/crowdsec:v1.7.4
+    networks:
+      - internal
+    ports:
+      # LAPI for bouncers
+      - "127.0.0.1:8080:8080"
+      # AppSec (WAF) - internal only
+      - "127.0.0.1:7422:7422"
+      # Prometheus metrics
+      - "127.0.0.1:6060:6060"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # CrowdSec configuration
+      - ./docker/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      # CrowdSec data persistence
+      - ./docker/crowdsec/db:/var/lib/crowdsec/data
+      - ./docker/crowdsec/config:/etc/crowdsec
+      # Traefik logs for analysis
+      - ./docker/traefik/logs:/var/log/traefik:ro
+      # System logs for analysis
+      - /var/log/syslog:/var/log/syslog:ro
+      - /var/log/auth.log:/var/log/auth.log:ro
+
+  # ===========================================================================
+  # Fail2Ban - Log-based IP Banning
+  # ===========================================================================
+  fail2ban:
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    container_name: fail2ban
+    environment:
+      F2B_DB_PURGE_AGE: 7d
+      F2B_LOG_LEVEL: INFO
+      F2B_LOG_TARGET: STDOUT
+      TZ: "${TZ:-UTC}"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      test: [ "CMD", "fail2ban-client", "status" ]
+      timeout: 10s
+    hostname: fail2ban
+    image: crazymax/fail2ban:1.1.0
+    network_mode: host
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # Fail2Ban configuration
+      - ./docker/fail2ban/jail.local:/etc/fail2ban/jail.local:ro
+      - ./docker/fail2ban/filter.d:/etc/fail2ban/filter.d:ro
+      # Fail2Ban data persistence
+      - ./docker/fail2ban/data:/data
+      # Traefik logs for analysis
+      - ./docker/traefik/logs:/var/log/traefik:ro
+
+  # ===========================================================================
+  # Gatus - Status Monitoring Dashboard
+  # ===========================================================================
+  gatus:
+    cap_add:
+      - NET_RAW
+    cap_drop:
+      - ALL
+    container_name: gatus
+    dns:
+      - 100.100.1.1
+      - 100.100.1.2
+      - 100.100.1.3
+    image: twinproduction/gatus
+    labels:
+      traefik.enable: true
+      traefik.http.routers.gatus.middlewares: external-noauth@file
+      traefik.http.routers.gatus.rule: Host(`status.${DOMAIN}`)
+      traefik.http.services.gatus.loadbalancer.server.port: 8080
+    networks:
+      - external
+      - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./docker/gatus/config:/config:ro
+      - ./docker/gatus/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ===========================================================================
+  # GoAccess - Real-time Log Analytics Dashboard
+  # ===========================================================================
+  goaccess:
+    container_name: goaccess
+    environment:
+      - HTML_REFRESH=5
+      - KEEP_LAST=30
+      - LOG_TYPE=TRAEFIK
+      - PROCESSING_THREADS=1
+      - TZ=${TZ:-UTC}
+    healthcheck:
+      interval: 30s
+      retries: 3
+      test: [ "CMD-SHELL", "wget -q -O- http://localhost:7880/ > /dev/null || exit 1" ]
+      timeout: 10s
+    image: xavierh/goaccess-for-nginxproxymanager:v1.1.38
+    labels:
+      traefik.enable: true
+      traefik.http.routers.goaccess.middlewares: external-oidc@file
+      traefik.http.routers.goaccess.rule: Host(`goaccess.${DOMAIN}`)
+      traefik.http.routers.goaccess.service: goaccess
+      traefik.http.services.goaccess.loadbalancer.server.port: 7880
+    networks:
+      - external
+      - internal
+    restart: unless-stopped
+    volumes:
+      - ./docker/traefik/logs:/opt/log:ro
+
+  # ===========================================================================
+  # Pocket ID - Authentication & Identity Provider (OIDC)
+  # ===========================================================================
+  pocket-id:
+    cap_drop:
+      - ALL
+    container_name: pocket-id
+    depends_on:
+      traefik:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      APP_URL: "https://pocket.${DOMAIN}"
+      ENCRYPTION_KEY: "${POCKET_ID_ENCRYPTION_KEY:?Pocket ID encryption key required}"
+      PGID: "1000"
+      PUBLIC_URL: "https://pocket.${DOMAIN}"
+      PUID: "1000"
+      TRUST_PROXY: "true"
+      TZ: "${TZ:-UTC}"
+    healthcheck:
+      interval: 1m30s
+      retries: 2
+      start_period: 10s
+      test: [ "CMD", "/app/pocket-id", "healthcheck" ]
+      timeout: 5s
+    hostname: pocket-id
+    image: ghcr.io/pocket-id/pocket-id:v1.16.0
+    labels:
+      traefik.enable: "true"
+      # External access (no auth - it IS the auth service)
+      traefik.http.routers.pocket-id.middlewares: "external-noauth@file"
+      traefik.http.routers.pocket-id.rule: "Host(`pocket.${DOMAIN}`)"
+      traefik.http.services.pocket-id.loadbalancer.server.port: "1411"
+    networks:
+      - external
+      - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+    volumes:
+      - ./docker/pocket-id/data:/app/data
+
+  # ===========================================================================
+  # Tailscale - Mesh VPN
+  # ===========================================================================
+  tailscale:
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    cap_drop:
+      - ALL
+    container_name: tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TS_AUTHKEY: "${TAILSCALE_AUTH_KEY:?tailscale auth key not defined}"
+      TS_EXTRA_ARGS: "--accept-routes=true --advertise-exit-node=true"
+      TS_SOCKET: /var/run/tailscale/tailscaled.sock
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 60s
+      test: [ "CMD-SHELL", "tailscale status --json | grep -q 'BackendState.*Running' || exit 1" ]
+      timeout: 10s
+    hostname: mothership
+    image: tailscale/tailscale:v1.90.9
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./docker/tailscale/data:/var/lib/tailscale:rw
+      - ./docker/tailscale:/var/run/tailscale
+
+  # ===========================================================================
+  # Traefik - Reverse Proxy
+  # ===========================================================================
+  traefik:
+    cap_add:
+      - NET_BIND_SERVICE
+    cap_drop:
+      - ALL
+    container_name: traefik
+    depends_on:
+      crowdsec:
+        condition: service_healthy
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      # Cloudflare DNS Challenge for Let's Encrypt
+      # Let's Encrypt email
+      ACME_EMAIL: "${ACME_EMAIL:?ACME email required for Let's Encrypt}"
+      CF_DNS_API_TOKEN: "${CF_DNS_API_TOKEN:?Cloudflare API token required}"
+      # CrowdSec bouncer key (generate after first start)
+      CROWDSEC_BOUNCER_KEY: "${CROWDSEC_BOUNCER_KEY:-}"
+      DOMAIN: "${DOMAIN:?Domain required}"
+      # Pocket ID OIDC Configuration
+      POCKET_ID_CLIENT_ID: "${POCKET_ID_CLIENT_ID:?Pocket ID Client ID required}"
+      POCKET_ID_CLIENT_SECRET: "${POCKET_ID_CLIENT_SECRET:?Pocket ID Client Secret required}"
+      POCKET_ID_OIDC_SECRET: "${POCKET_ID_OIDC_SECRET:?Pocket ID OIDC Secret required}"
+      # Timezone
+      TZ: "${TZ:-UTC}"
+    # Note: Traefik dashboard is configured in docker/traefik/dynamic/dashboard.yaml
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      test: [ "CMD-SHELL", "wget -q -O- http://localhost:80/ping || exit 1" ]
+      timeout: 10s
+    hostname: traefik
+    image: traefik:v3.6.4
+    networks:
+      - external
+      - internal
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${INTERNAL_IP}:8080:8080"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # Docker socket (read-only for security)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Traefik configuration
+      - ./docker/traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - ./docker/traefik/dynamic:/etc/traefik/dynamic:ro
+      # Certificates storage
+      - ./docker/traefik/certs:/etc/traefik/certs
+      # Logs (shared with CrowdSec, Fail2Ban, GoAccess)
+      - ./docker/traefik/logs:/var/log/traefik
+
+  # ===========================================================================
+  # Whoami - Test service
+  # ===========================================================================
+  whoami:
+    cap_drop:
+      - ALL
+    container_name: whoami
+    hostname: whoami
+    image: traefik/whoami
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.whoami.middlewares: "external-oidc@file"
+      traefik.http.routers.whoami.rule: "Host(`whoami.${DOMAIN}`)"
+      traefik.http.services.whoami.loadbalancer.server.port: "80"
+    networks:
+      - external
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    user: "65534:65534"

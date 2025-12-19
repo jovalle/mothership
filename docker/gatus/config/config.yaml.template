@@ -1,0 +1,212 @@
+---
+alerting:
+  discord:
+    webhook-url: "${DISCORD_WEBHOOK_URL}"
+connectivity:
+  checker:
+    interval: 30s
+    target: 1.1.1.1:53
+endpoint-defaults: &defaults
+  client:
+    timeout: 10s
+  conditions:
+    - "[STATUS] == 200"
+  group: internal
+  interval: 30s
+endpoints:
+  - <<: *defaults
+    name: adguard-mothership
+    url: "https://adguard.mothership.${DOMAIN}"
+  - <<: *defaults
+    name: adguard-nexus
+    url: "https://adguard.nexus.${DOMAIN}"
+  - <<: *defaults
+    name: adguard-stargate
+    url: "https://adguard.stargate.${DOMAIN}"
+  - <<: *defaults
+    name: authelia
+    url: "https://auth.${DOMAIN}"
+  - <<: *defaults
+    headers: &auth
+      Authorization: "Basic ${GATUS_AUTH_TOKEN}"
+    name: bazarr
+    url: "https://bazarr.${DOMAIN}/ping"
+  - <<: *defaults
+    name: beszel
+    url: "https://beszel.${DOMAIN}"
+  - <<: *defaults
+    conditions:
+      - "[CONNECTED] == true"
+    group: egress
+    name: cloudflare
+    url: "icmp://1.1.1.1"
+  - <<: *defaults
+    name: console-nexus
+    url: "https://console.nexus.${DOMAIN}"
+  - <<: *defaults
+    name: console-stargate
+    url: "https://console.stargate.${DOMAIN}"
+  - <<: *defaults
+    name: dockge
+    url: "https://dockge.${DOMAIN}"
+  - <<: *defaults
+    name: dockpeek
+    url: "https://dockpeek.${DOMAIN}"
+  - <<: *defaults
+    name: dozzle
+    url: "https://dozzle.${DOMAIN}"
+  - <<: *defaults
+    name: excalidraw
+    url: "https://excalidraw.${DOMAIN}"
+  - <<: *defaults
+    name: flaresolverr
+    url: "https://flaresolverr.${DOMAIN}"
+  - <<: *defaults
+    name: glances
+    url: "https://glances.${DOMAIN}"
+  - <<: *defaults
+    client:
+      insecure: true
+    name: go
+    url: "http://go.${DOMAIN}/status"
+  - <<: *defaults
+    name: grafana
+    url: "https://grafana.${DOMAIN}"
+  - <<: *defaults
+    name: harborguard
+    url: "https://harborguard.${DOMAIN}"
+  - <<: *defaults
+    name: homepage
+    url: "https://homepage.${DOMAIN}"
+  - <<: *defaults
+    name: immich
+    url: "https://immich.${DOMAIN}"
+  - <<: *defaults
+    name: kromgo
+    url: "https://kromgo.${DOMAIN}/query?format=endpoint&metric=cluster_memory_usage&style=flat&label=memory"
+  - <<: *defaults
+    headers: *auth
+    name: lidarr
+    url: "https://lidarr.${DOMAIN}/ping"
+  - <<: *defaults
+    name: mytabs
+    url: "https://mytabs.${DOMAIN}"
+  - <<: *defaults
+    name: navidrome
+    url: "https://navidrome.${DOMAIN}"
+  - <<: *defaults
+    name: nextcloud
+    url: "https://nextcloud.${DOMAIN}"
+  - <<: *defaults
+    name: overseerr
+    url: "https://overseerr.${DOMAIN}"
+  - <<: *defaults
+    name: paperless
+    url: "https://paperless.${DOMAIN}"
+  - <<: *defaults
+    name: pgadmin
+    url: "https://pgadmin.${DOMAIN}"
+  - <<: *defaults
+    conditions:
+      - "[STATUS] == 401"
+    name: plex
+    url: https://plex.${DOMAIN}
+  - <<: *defaults
+    name: portainer
+    url: "https://portainer.${DOMAIN}"
+  - <<: *defaults
+    headers: *auth
+    name: profilarr
+    url: "https://profilarr.${DOMAIN}/ping"
+  - <<: *defaults
+    name: prometheus
+    url: "https://prometheus.${DOMAIN}"
+  - <<: *defaults
+    headers: *auth
+    name: prowlarr
+    url: "https://prowlarr.${DOMAIN}/ping"
+  - <<: *defaults
+    name: qbittorrent
+    url: "https://qbittorrent.${DOMAIN}"
+  - <<: *defaults
+    headers: *auth
+    name: radarr
+    url: "https://radarr.${DOMAIN}/ping"
+  - <<: *defaults
+    headers: *auth
+    name: sabnzbd
+    url: "https://sabnzbd.${DOMAIN}/ping"
+  - <<: *defaults
+    headers: *auth
+    name: sonarr
+    url: "https://sonarr.${DOMAIN}/ping"
+  - <<: *defaults
+    name: syncthing
+    url: "https://syncthing.${DOMAIN}"
+  - <<: *defaults
+    name: tautulli
+    url: "https://tautulli.${DOMAIN}"
+  - <<: *defaults
+    name: traefik-mothership
+    url: "https://traefik.mothership.${DOMAIN}"
+  - <<: *defaults
+    name: traefik-nexus
+    url: "https://traefik.nexus.${DOMAIN}"
+  - <<: *defaults
+    name: traefik-stargate
+    url: "https://traefik.stargate.${DOMAIN}"
+  - <<: *defaults
+    alerts:
+      - type: discord
+    group: external
+    name: requests
+    url: https://requests.${DOMAIN}
+  - <<: *defaults
+    group: external
+    name: stat
+    ui:
+      hide-url: true
+    url: ${KROMGO_URL}
+  - <<: *defaults
+    alerts:
+      - type: discord
+    group: external
+    name: status
+    url: https://status.${DOMAIN}
+  - <<: *defaults
+    alerts:
+      - type: discord
+    group: external
+    name: dash
+    url: https://dash.${DOMAIN}
+  - <<: *defaults
+    alerts:
+      - type: discord
+    client:
+      insecure: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*machineIdentifier*)"
+    group: external
+    name: plex
+    ui:
+      hide-hostname: true
+      hide-url: true
+    url: https://${DDNS_DOMAIN}:32400/identity
+  - <<: *defaults
+    alerts:
+      - type: discord
+    group: external
+    name: join
+    url: https://join.${DOMAIN}
+metrics: true
+storage:
+  path: /data/data.db
+  type: sqlite
+ui:
+  header: Technis
+  link: https://${DOMAIN}
+  logo: https://ik.imagekit.io/technis/logo.png
+  title: Status | Technis
+web:
+  port: 8080

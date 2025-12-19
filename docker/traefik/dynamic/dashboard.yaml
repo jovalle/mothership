@@ -1,0 +1,23 @@
+# =============================================================================
+# Traefik Dashboard Router
+# =============================================================================
+http:
+  routers:
+    traefik-dashboard:
+      entryPoints:
+        - websecure
+      middlewares:
+        - external-oidc@file
+      rule: 'Host(`traefik.{{ env "DOMAIN" }}`)'
+      service: api@internal
+      tls:
+        certResolver: letsencrypt
+    traefik-internal-dashboard:
+      entryPoints:
+        - websecure
+      middlewares:
+        - internal@file
+      rule: 'Host(`traefik.mothership.{{ env "DOMAIN" }}`)'
+      service: api@internal
+      tls:
+        certResolver: letsencrypt

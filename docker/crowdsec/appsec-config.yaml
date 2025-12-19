@@ -1,0 +1,23 @@
+# =============================================================================
+# CrowdSec AppSec (WAF) Configuration
+# =============================================================================
+# Virtual patching and ModSecurity-like rules for HTTP protection
+# =============================================================================
+
+name: crowdsecurity/traefik-appsec
+default_remediation: ban
+# Maximum body size to inspect (10MB default)
+body_size_limit: 10485760
+
+# Inband rules - checked synchronously, can block requests
+inband_rules:
+  - crowdsecurity/base-config
+
+# Outband rules - checked asynchronously, for logging/alerting
+outband_rules: []
+
+# Variables that AppSec will populate from HTTP requests
+variables: []
+
+# Log level for AppSec
+log_level: info

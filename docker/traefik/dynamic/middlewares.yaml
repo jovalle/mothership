@@ -1,0 +1,388 @@
+# =============================================================================
+# Traefik Dynamic Configuration - Security Middlewares
+# =============================================================================
+# Simplified middleware naming and structure for clarity
+# =============================================================================
+
+http:
+  middlewares:
+    # =========================================================================
+    # BASE COMPONENTS (Building Blocks)
+    # =========================================================================
+
+    # -------------------------------------------------------------------------
+    # Security Headers
+    # -------------------------------------------------------------------------
+    headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=()"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+          X-Download-Options: "noopen"
+          X-Permitted-Cross-Domain-Policies: "none"
+          server: ""
+
+    # -------------------------------------------------------------------------
+    # IP Allow Lists
+    # -------------------------------------------------------------------------
+    external-ips:
+      ipAllowList:
+        sourceRange:
+          # Cloudflare IPv4 ranges
+          - "173.245.48.0/20"
+          - "103.21.244.0/22"
+          - "103.22.200.0/22"
+          - "103.31.4.0/22"
+          - "141.101.64.0/18"
+          - "108.162.192.0/18"
+          - "190.93.240.0/20"
+          - "188.114.96.0/20"
+          - "197.234.240.0/22"
+          - "198.41.128.0/17"
+          - "162.158.0.0/15"
+          - "104.16.0.0/13"
+          - "104.24.0.0/14"
+          - "172.64.0.0/13"
+          - "131.0.72.0/22"
+          # Cloudflare IPv6 ranges
+          - "2400:cb00::/32"
+          - "2606:4700::/32"
+          - "2803:f800::/32"
+          - "2405:b500::/32"
+          - "2405:8100::/32"
+          - "2a06:98c0::/29"
+          - "2c0f:f248::/32"
+        ipStrategy:
+          depth: 0
+
+    internal-ips:
+      ipAllowList:
+        sourceRange:
+          - "100.64.0.0/10"  # Tailscale CGNAT
+          - "fd7a:115c:a1e0::/48"  # Tailscale IPv6
+          - "10.0.0.0/8"  # RFC1918
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+          - "127.0.0.1/32"  # Localhost
+          - "::1/128"
+        ipStrategy:
+          depth: 0
+
+    # -------------------------------------------------------------------------
+    # Real IP Extraction
+    # -------------------------------------------------------------------------
+    real-ip:
+      plugin:
+        real-ip:
+          excludednets:
+            - "127.0.0.0/8"
+
+    # -------------------------------------------------------------------------
+    # Rate Limiting
+    # -------------------------------------------------------------------------
+    ratelimit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: "CF-Connecting-IP"
+
+    ratelimit-strict:
+      rateLimit:
+        average: 50
+        burst: 100
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: "CF-Connecting-IP"
+
+    ratelimit-api:
+      rateLimit:
+        average: 30
+        burst: 50
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: "CF-Connecting-IP"
+
+    ratelimit-auth:
+      rateLimit:
+        average: 5
+        burst: 10
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: "CF-Connecting-IP"
+
+    # -------------------------------------------------------------------------
+    # CrowdSec Bouncer
+    # -------------------------------------------------------------------------
+    crowdsec:
+      plugin:
+        crowdsec:
+          enabled: true
+          logLevel: INFO
+          crowdsecMode: stream
+          crowdsecLapiScheme: http
+          crowdsecLapiHost: crowdsec:8080
+          crowdsecLapiKey: '{{ env "CROWDSEC_BOUNCER_KEY" }}'
+          updateIntervalSeconds: 15
+          defaultDecisionSeconds: 60
+          httpTimeoutSeconds: 10
+          crowdsecAppsecEnabled: false
+          crowdsecAppsecHost: "crowdsec:7422"
+          crowdsecAppsecFailureBlock: true
+          crowdsecAppsecUnreachableBlock: false
+          forwardedHeadersTrustedIPs:
+            - "173.245.48.0/20"
+            - "103.21.244.0/22"
+            - "103.22.200.0/22"
+            - "103.31.4.0/22"
+            - "141.101.64.0/18"
+            - "108.162.192.0/18"
+            - "190.93.240.0/20"
+            - "188.114.96.0/20"
+            - "197.234.240.0/22"
+            - "198.41.128.0/17"
+            - "162.158.0.0/15"
+            - "104.16.0.0/13"
+            - "104.24.0.0/14"
+            - "172.64.0.0/13"
+            - "131.0.72.0/22"
+            - "2400:cb00::/32"
+            - "2606:4700::/32"
+            - "2803:f800::/32"
+            - "2405:b500::/32"
+            - "2405:8100::/32"
+            - "2a06:98c0::/29"
+            - "2c0f:f248::/32"
+          forwardedHeadersCustomName: "CF-Connecting-IP"
+          clientTrustedIPs:
+            - "10.0.0.0/8"
+            - "172.16.0.0/12"
+            - "192.168.0.0/16"
+            - "100.64.0.0/10"
+
+    # -------------------------------------------------------------------------
+    # GeoBlocking
+    # -------------------------------------------------------------------------
+    geoblock:
+      plugin:
+        geoblock:
+          silentStartUp: false
+          allowLocalRequests: true
+          logLocalRequests: false
+          logAllowedRequests: false
+          logApiRequests: false
+          api: "https://get.geojs.io/v1/ip/country/{ip}"
+          apiTimeoutMs: 1000
+          cacheSize: 100
+          forceMonthlyUpdate: true
+          allowUnknownCountries: false
+          unknownCountryApiResponse: "nil"
+          ipGeolocationHttpHeaderField: "CF-IPCountry"
+          blackListMode: false
+          countries:
+            - US  # United States
+          allowedIPAddresses:
+            - "10.0.0.0/8"
+            - "172.16.0.0/12"
+            - "192.168.0.0/16"
+            - "100.64.0.0/10"
+
+    # -------------------------------------------------------------------------
+    # Authentication Providers
+    # -------------------------------------------------------------------------
+    auth:
+      forwardAuth:
+        address: 'http://authelia:9091/api/verify?rd=https://auth.{{ env "DOMAIN" }}'
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+        authRequestHeaders:
+          - Accept
+          - Authorization
+          - Cookie
+          - Proxy-Authorization
+          - X-Forwarded-For
+          - X-Forwarded-Host
+          - X-Forwarded-Method
+          - X-Forwarded-Proto
+          - X-Forwarded-Uri
+          - X-Original-Method
+          - X-Original-URL
+
+    auth-basic:
+      forwardAuth:
+        address: "http://authelia:9091/api/authz/forward-auth?authtype=basic"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+        authRequestHeaders:
+          - Authorization
+          - Proxy-Authorization
+          - X-Forwarded-For
+          - X-Forwarded-Host
+          - X-Forwarded-Method
+          - X-Forwarded-Proto
+          - X-Forwarded-Uri
+
+    # -------------------------------------------------------------------------
+    # OIDC Authentication (Wildcard for *.{{ env "DOMAIN" }})
+    # -------------------------------------------------------------------------
+    # Pocket ID OIDC Client Setup:
+    #
+    # 1. Navigate: https://pocket.{{ env "DOMAIN" }}/settings/admin/oidc-clients
+    # 2. Create Application:
+    #    - Name: "Traefik Wildcard OIDC"
+    #    - Client Type: Confidential
+    #    - Grant Types: ✓ Authorization Code, ✓ Refresh Token
+    #    - Client Launch URL: https://{{ env "DOMAIN" }} (optional)
+    # 3. Redirect URLs: https://*.{{ env "DOMAIN" }}/oidc/callback
+    # 4. Logout URLs: https://*.{{ env "DOMAIN" }}/oidc/logout
+    #                 https://*.{{ env "DOMAIN" }}
+    # 5. Scopes: openid, profile, email, groups
+    # 6. Copy Client ID and Client Secret
+    # 7. Generate session secret: openssl rand -base64 32
+    # 8. Set environment variables:
+    #    POCKET_ID_CLIENT_ID=<client_id>
+    #    POCKET_ID_CLIENT_SECRET=<client_secret>
+    #    POCKET_ID_OIDC_SECRET=<random_secret>
+    # -------------------------------------------------------------------------
+    auth-oidc:
+      plugin:
+        traefik-oidc-auth:
+          Secret: '{{ env "POCKET_ID_OIDC_SECRET" }}'
+          Provider:
+            Url: 'https://pocket.{{ env "DOMAIN" }}'
+            ClientId: '{{ env "POCKET_ID_CLIENT_ID" }}'
+            ClientSecret: '{{ env "POCKET_ID_CLIENT_SECRET" }}'
+          Scopes:
+            - "openid"
+            - "profile"
+            - "email"
+            - "groups"
+          RedirectUri: 'https://{host}/oidc/callback'
+          LogoutUri: 'https://{host}/oidc/logout'
+
+    # -------------------------------------------------------------------------
+    # Utility Middlewares
+    # -------------------------------------------------------------------------
+    compress:
+      compress:
+        excludedContentTypes:
+          - "text/event-stream"
+
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    strip-auth:
+      headers:
+        customRequestHeaders:
+          Authorization: ""
+
+    # =========================================================================
+    # MIDDLEWARE CHAINS (Compositions)
+    # =========================================================================
+
+    # -------------------------------------------------------------------------
+    # Internal Access (Tailscale VPN)
+    # -------------------------------------------------------------------------
+    internal:
+      chain:
+        middlewares:
+          - internal-ips
+          - headers
+
+    internal-auth:
+      chain:
+        middlewares:
+          - internal-ips
+          - auth
+          - headers
+
+    # -------------------------------------------------------------------------
+    # External Access (Internet via Cloudflare)
+    # -------------------------------------------------------------------------
+    external:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - geoblock
+          - headers
+
+    # Default for all externally exposed services (with OIDC auth)
+    external-oidc:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - geoblock
+          - auth-oidc
+          - headers
+
+    external-auth:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - geoblock
+          - auth
+          - headers
+
+    # For Authelia itself (no auth loop)
+    external-noauth:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - geoblock
+          - headers
+
+    # -------------------------------------------------------------------------
+    # API Access
+    # -------------------------------------------------------------------------
+    api:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit-api
+          - geoblock
+          - auth-basic
+          - headers
+          - strip-auth
+
+    # -------------------------------------------------------------------------
+    # Monitoring/Health Checks (minimal restrictions)
+    # -------------------------------------------------------------------------
+    monitoring:
+      chain:
+        middlewares:
+          - real-ip
+          - auth-basic
+          - headers

@@ -1,0 +1,61 @@
+# =============================================================================
+# GoAccess Configuration for Traefik JSON Logs
+# =============================================================================
+
+# Time format for Traefik Common Log Format
+time-format %H:%M:%S
+
+# Date format for Traefik Common Log Format
+date-format %d/%b/%Y
+
+# Traefik Common Log Format
+log-format %h %^[%d:%t %^] "%r" %s %b "%R" "%u"
+
+# Output to HTML
+output /srv/goaccess/index.html
+
+# Real-time HTML
+real-time-html true
+
+# WebSocket server settings
+ws-url wss://goaccess.${DOMAIN}
+port 7890
+addr 0.0.0.0
+origin https://goaccess.${DOMAIN}
+
+# Database settings for persistence
+db-path /srv/goaccess/data
+
+# Persist data
+persist true
+restore true
+
+# Ignore crawlers
+ignore-crawlers false
+
+# Agent list
+agent-list true
+
+# HTTP protocol
+http-protocol yes
+
+# HTTP method
+http-method yes
+
+# Anonymize IPs (optional - comment out if you want full IPs)
+# anonymize-ip true
+
+# GeoIP database (if available)
+# geoip-database /usr/share/GeoIP/GeoLite2-City.mmdb
+
+# Exclude static files from stats (optional)
+# ignore-panel STATIC_REQUESTS
+
+# Color scheme
+color-scheme 0
+
+# Max items per panel
+max-items 50
+
+# Process all log entries
+process-and-exit false

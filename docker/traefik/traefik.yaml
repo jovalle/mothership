@@ -1,0 +1,258 @@
+# =============================================================================
+# Traefik Static Configuration - Hardened for Internet Exposure
+# =============================================================================
+# Security layers: CrowdSec, Rate Limiting, GeoBlocking, Cloudflare IP Whitelist,
+# Real IP extraction, Let's Encrypt TLS, Fail2Ban monitoring
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Settings
+# -----------------------------------------------------------------------------
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# -----------------------------------------------------------------------------
+# API & Dashboard
+# -----------------------------------------------------------------------------
+api:
+  dashboard: true
+  insecure: true  # Enable insecure for local access on 8080
+
+# Healthcheck endpoint
+ping:
+  entryPoint: "web"
+
+# -----------------------------------------------------------------------------
+# Entry Points
+# -----------------------------------------------------------------------------
+entryPoints:
+  # HTTP - Redirect all to HTTPS
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+    # Trust Cloudflare proxy IPs for X-Forwarded-* headers
+    forwardedHeaders:
+      trustedIPs:
+        # Cloudflare IPv4 ranges (as of 2024)
+        - "173.245.48.0/20"
+        - "103.21.244.0/22"
+        - "103.22.200.0/22"
+        - "103.31.4.0/22"
+        - "141.101.64.0/18"
+        - "108.162.192.0/18"
+        - "190.93.240.0/20"
+        - "188.114.96.0/20"
+        - "197.234.240.0/22"
+        - "198.41.128.0/17"
+        - "162.158.0.0/15"
+        - "104.16.0.0/13"
+        - "104.24.0.0/14"
+        - "172.64.0.0/13"
+        - "131.0.72.0/22"
+        # Cloudflare IPv6 ranges
+        - "2400:cb00::/32"
+        - "2606:4700::/32"
+        - "2803:f800::/32"
+        - "2405:b500::/32"
+        - "2405:8100::/32"
+        - "2a06:98c0::/29"
+        - "2c0f:f248::/32"
+    proxyProtocol:
+      trustedIPs:
+        # Cloudflare IPv4 ranges (as of 2024)
+        - "173.245.48.0/20"
+        - "103.21.244.0/22"
+        - "103.22.200.0/22"
+        - "103.31.4.0/22"
+        - "141.101.64.0/18"
+        - "108.162.192.0/18"
+        - "190.93.240.0/20"
+        - "188.114.96.0/20"
+        - "197.234.240.0/22"
+        - "198.41.128.0/17"
+        - "162.158.0.0/15"
+        - "104.16.0.0/13"
+        - "104.24.0.0/14"
+        - "172.64.0.0/13"
+        - "131.0.72.0/22"
+        # Cloudflare IPv6 ranges
+        - "2400:cb00::/32"
+        - "2606:4700::/32"
+        - "2803:f800::/32"
+        - "2405:b500::/32"
+        - "2405:8100::/32"
+        - "2a06:98c0::/29"
+        - "2c0f:f248::/32"
+
+  # HTTPS - Main secure entry point
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: '{{ env "DOMAIN" }}'
+            sans:
+              - '*.{{ env "DOMAIN" }}'
+              - '*.mothership.{{ env "DOMAIN" }}'
+              - '*.nexus.{{ env "DOMAIN" }}'
+              - '*.stargate.{{ env "DOMAIN" }}'
+    forwardedHeaders:
+      trustedIPs:
+        - "173.245.48.0/20"
+        - "103.21.244.0/22"
+        - "103.22.200.0/22"
+        - "103.31.4.0/22"
+        - "141.101.64.0/18"
+        - "108.162.192.0/18"
+        - "190.93.240.0/20"
+        - "188.114.96.0/20"
+        - "197.234.240.0/22"
+        - "198.41.128.0/17"
+        - "162.158.0.0/15"
+        - "104.16.0.0/13"
+        - "104.24.0.0/14"
+        - "172.64.0.0/13"
+        - "131.0.72.0/22"
+        - "2400:cb00::/32"
+        - "2606:4700::/32"
+        - "2803:f800::/32"
+        - "2405:b500::/32"
+        - "2405:8100::/32"
+        - "2a06:98c0::/29"
+        - "2c0f:f248::/32"
+    proxyProtocol:
+      trustedIPs:
+        - "173.245.48.0/20"
+        - "103.21.244.0/22"
+        - "103.22.200.0/22"
+        - "103.31.4.0/22"
+        - "141.101.64.0/18"
+        - "108.162.192.0/18"
+        - "190.93.240.0/20"
+        - "188.114.96.0/20"
+        - "197.234.240.0/22"
+        - "198.41.128.0/17"
+        - "162.158.0.0/15"
+        - "104.16.0.0/13"
+        - "104.24.0.0/14"
+        - "172.64.0.0/13"
+        - "131.0.72.0/22"
+        - "2400:cb00::/32"
+        - "2606:4700::/32"
+        - "2803:f800::/32"
+        - "2405:b500::/32"
+        - "2405:8100::/32"
+        - "2a06:98c0::/29"
+        - "2c0f:f248::/32"
+
+  # Traefik API/Dashboard - Internal only
+  traefik:
+    address: ":8080"
+
+
+# -----------------------------------------------------------------------------
+# Certificate Resolvers (Let's Encrypt)
+# -----------------------------------------------------------------------------
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: 'admin@{{ env "DOMAIN" }}'
+      storage: /etc/traefik/certs/acme.json
+      # Use DNS challenge for wildcard certs (recommended with Cloudflare)
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: 10s
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+      # Uncomment for staging/testing (avoid rate limits)
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+
+# -----------------------------------------------------------------------------
+# Providers
+# -----------------------------------------------------------------------------
+providers:
+  docker:
+    defaultRule: "Host(`{{ with index .Labels \"com.docker.compose.service\" }}{{ normalize . }}{{ else }}{{ normalize $.Name }}{{ end }}.{{ env \"DOMAIN\" }}`)"
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: traefik-public
+    watch: true
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# -----------------------------------------------------------------------------
+# Logging - Essential for CrowdSec and Fail2Ban analysis
+# -----------------------------------------------------------------------------
+log:
+  level: WARN
+  filePath: /var/log/traefik/traefik.log
+  format: json
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: common
+  bufferingSize: 100
+  filters:
+    statusCodes:
+      - "200-599"
+    retryAttempts: true
+    minDuration: "10ms"
+  fields:
+    defaultMode: keep
+    names:
+      ClientUsername: drop
+    headers:
+      defaultMode: keep
+      names:
+        User-Agent: keep
+        Authorization: drop
+        Content-Type: keep
+        CF-Connecting-IP: keep
+        CF-IPCountry: keep
+        X-Forwarded-For: keep
+        X-Real-IP: keep
+
+# -----------------------------------------------------------------------------
+# Experimental Features - Plugins
+# -----------------------------------------------------------------------------
+experimental:
+  plugins:
+    # CrowdSec Bouncer - IDS/IPS integration
+    crowdsec:
+      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: v1.4.6
+    # GeoBlock - Country-based blocking
+    geoblock:
+      moduleName: github.com/PascalMinder/geoblock
+      version: v0.3.4
+    # Real IP from Cloudflare
+    real-ip:
+      moduleName: github.com/soulbalz/traefik-real-ip
+      version: v1.0.3
+    # OIDC Authentication
+    traefik-oidc-auth:
+      moduleName: github.com/sevensolutions/traefik-oidc-auth
+      version: v0.17.0
+
+# -----------------------------------------------------------------------------
+# Metrics (Optional - for monitoring)
+# -----------------------------------------------------------------------------
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
