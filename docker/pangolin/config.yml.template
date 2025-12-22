@@ -1,0 +1,32 @@
+# To see all available options, please visit the docs:
+# https://docs.pangolin.net/
+
+gerbil:
+    start_port: 51820
+    base_endpoint: "${PANGOLIN_GERBIL_BASE_ENDPOINT}"
+
+app:
+    dashboard_url: "https://pangolin.${DOMAIN}"
+    log_level: "info"
+    telemetry:
+        anonymous_usage: false
+
+domains:
+    domain1:
+        base_domain: "${DOMAIN}"
+
+server:
+    secret: "${PANGOLIN_SERVER_SECRET}"
+    cors:
+        origins: ["https://pangolin.${DOMAIN}"]
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+        allowed_headers: ["X-CSRF-Token", "Content-Type"]
+        credentials: false
+    maxmind_db_path: "./config/GeoLite2-Country.mmdb"
+    trust_proxy: 2
+
+flags:
+    require_email_verification: false
+    disable_signup_without_invite: true
+    disable_user_create_org: false
+    allow_raw_resources: true

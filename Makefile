@@ -106,10 +106,12 @@ start: template
 ifdef SERVICE
 	@echo "Starting container(s): $(SERVICE)..."
 	@docker compose up -d $(SERVICE)
+	@./scripts/pangolin-wireguard-routes.sh >/dev/null 2>&1 || true
 	@echo "Container(s) started successfully"
 else
 	@echo "Starting all containers..."
 	@docker compose up -d --remove-orphans
+	@./scripts/pangolin-wireguard-routes.sh >/dev/null 2>&1 || true
 	@echo "All containers started successfully"
 endif
 
@@ -130,10 +132,12 @@ restart:
 ifdef SERVICE
 	@echo "Restarting container(s): $(SERVICE)..."
 	@docker compose restart $(SERVICE)
+	@./scripts/pangolin-wireguard-routes.sh >/dev/null 2>&1 || true
 	@echo "Container(s) restarted successfully"
 else
 	@echo "Restarting all containers..."
 	@docker compose restart
+	@./scripts/pangolin-wireguard-routes.sh >/dev/null 2>&1 || true
 	@echo "All containers restarted successfully"
 endif
 

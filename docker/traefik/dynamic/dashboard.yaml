@@ -6,8 +6,6 @@ http:
     traefik-dashboard:
       entryPoints:
         - websecure
-      middlewares:
-        - external-oidc@file
       rule: 'Host(`traefik.{{ env "DOMAIN" }}`)'
       service: api@internal
       tls:
@@ -15,8 +13,6 @@ http:
     traefik-internal-dashboard:
       entryPoints:
         - websecure
-      middlewares:
-        - internal@file
       rule: 'Host(`traefik.mothership.{{ env "DOMAIN" }}`)'
       service: api@internal
       tls:
