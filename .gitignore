@@ -1,4 +1,6 @@
 .env
+.planning
+.serena
 .venv
 *.log*
 *.pem
@@ -12,7 +14,9 @@ docker/authelia/db.sqlite3
 docker/authelia/notification.txt
 docker/authelia/oidc_config_snippet.yaml
 docker/authelia/users_database.yaml
+docker/beszel-agent/fingerprint
 docker/crowdsec/config
+docker/crowdsec-web-ui
 docker/fail2ban/data/
 docker/gatus/config/config.yaml
 docker/gatus/data/
@@ -30,6 +34,5 @@ docker/pangolin/data/
 docker/pangolin/GeoLite2-Country.mmdb
 docker/pangolin/key
 docker/pangolin/letsencrypt/acme.json
-docker/pocket-id/data/
 files/
 logs/

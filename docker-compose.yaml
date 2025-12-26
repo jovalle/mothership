@@ -6,6 +6,9 @@ networks:
     driver: bridge
     enable_ipv6: true
     name: external
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
   internal:
     driver: bridge
 
@@ -24,6 +27,9 @@ services:
     cap_drop:
       - ALL
     container_name: adguard
+    depends_on:
+      tailscale:
+        condition: service_healthy
     dns:
       - 76.76.2.2
       - 76.76.10.2
@@ -42,7 +48,6 @@ services:
       traefik.http.routers.adguard.service: adguard
       traefik.http.services.adguard.loadbalancer.server.port: 80
     networks:
-      - external
       - internal
     ports:
       - ${INTERNAL_IP:?internal IP not set}:53:53/tcp
@@ -73,9 +78,12 @@ services:
       traefik:
         condition: service_healthy
     environment:
-      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: ${AUTHELIA_JWT_SECRET:?Authelia JWT secret required}
+      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET:?Authelia JWT secret required}
       AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET:?Authelia session secret required}
       AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY:?Authelia storage encryption key required}
+      AUTHELIA_OIDC_HMAC_SECRET: ${AUTHELIA_OIDC_HMAC_SECRET:?Authelia OIDC HMAC secret required}
+      AUTHELIA_OIDC_ISSUER_PRIVATE_KEY: ${AUTHELIA_OIDC_ISSUER_PRIVATE_KEY:?Authelia OIDC issuer private key required}
+      AUTHELIA_OIDC_CLIENT_WEBAPP_SECRET: ${AUTHELIA_OIDC_CLIENT_WEBAPP_SECRET:?Authelia OIDC webapp client secret required}
       DOMAIN: ${DOMAIN:?Domain required}
       TZ: ${TZ:-UTC}
     healthcheck:
@@ -88,9 +96,18 @@ services:
     image: authelia/authelia:4.38
     labels:
       traefik.enable: true
-      traefik.http.routers.authelia.middlewares: external@file
+      # Main Authelia portal - publicly accessible (auth provider itself)
+      traefik.http.routers.authelia.middlewares: external-bypass@file
       traefik.http.routers.authelia.rule: Host(`auth.${DOMAIN}`)
       traefik.http.services.authelia.loadbalancer.server.port: 9091
+      # Authelia ForwardAuth middleware for protecting other services
+      traefik.http.middlewares.authelia.forwardAuth.address: http://authelia:9091/api/authz/forward-auth
+      traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader: true
+      traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders: Remote-User,Remote-Groups,Remote-Email,Remote-Name
+      # Authelia ForwardAuth middleware with basic auth enabled (for apps that need it)
+      traefik.http.middlewares.authelia-basic.forwardAuth.address: http://authelia:9091/api/authz/forward-auth?authelia_url=https://auth.${DOMAIN}
+      traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader: true
+      traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders: Remote-User,Remote-Groups,Remote-Email,Remote-Name
     networks:
       - external
       - internal
@@ -119,7 +136,7 @@ services:
       start_period: 60s
       test: [ "CMD", "cloudflared", "version" ]
       timeout: 10s
-    image: cloudflare/cloudflared
+    image: cloudflare/cloudflared:2025.11.1
     networks:
       - internal
     read_only: true
@@ -144,17 +161,21 @@ services:
       COLLECTIONS: >-
         crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/whitelist-good-actors crowdsecurity/iptables crowdsecurity/linux
       # Disable online API enrollment on first run (configure manually)
-      DISABLE_ONLINE_API: "false"
+      DISABLE_ONLINE_API: false
       # Timezone
       TZ: ${TZ:-UTC}
       # Enable AppSec (WAF)
-      USE_APPSEC: "true"
+      USE_APPSEC: true
     healthcheck:
-      interval: 30s
+      test:
+        - CMD
+        - cscli
+        - lapi
+        - status
+      interval: 10s
+      timeout: 5s
       retries: 3
-      start_period: 60s
-      test: [ "CMD", "cscli", "version" ]
-      timeout: 10s
+      start_period: 30s
     hostname: crowdsec
     image: crowdsecurity/crowdsec:v1.7.4
     networks:
@@ -180,6 +201,36 @@ services:
       # System logs for analysis
       - /var/log/syslog:/var/log/syslog:ro
       - /var/log/auth.log:/var/log/auth.log:ro
+  crowdsec-web-ui:
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    cap_drop:
+      - ALL
+    container_name: crowdsec-web-ui
+    environment:
+      - CROWDSEC_URL=http://crowdsec:8080
+      - CROWDSEC_USER=crowdsec-web-ui
+      - CROWDSEC_PASSWORD=${CROWDSEC_WEB_UI_PASSWORD:?CrowdSec Web UI password required}
+      - CROWDSEC_REFRESH_INTERVAL=5s
+      - CROWDSEC_IDLE_REFRESH_INTERVAL=5m
+      - CROWDSEC_IDLE_THRESHOLD=2m
+      - CROWDSEC_FULL_REFRESH_INTERVAL=5m
+    image: ghcr.io/theduffman85/crowdsec-web-ui
+    labels:
+      traefik.enable: true
+      traefik.http.routers.crowdsec-web-ui.middlewares: internal@file
+      traefik.http.routers.crowdsec-web-ui.rule: Host(`crowdsec.mothership.${DOMAIN}`)
+      traefik.http.routers.crowdsec-web-ui.service: crowdsec-web-ui
+      traefik.http.services.crowdsec-web-ui.loadbalancer.server.port: 3000
+    networks:
+      - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./docker/crowdsec-web-ui:/app/config
 
   # ===========================================================================
   # Fail2Ban - Log-based IP Banning
@@ -201,7 +252,7 @@ services:
       test: [ "CMD", "fail2ban-client", "status" ]
       timeout: 10s
     hostname: fail2ban
-    image: crazymax/fail2ban:1.1.0
+    image: linuxserver/fail2ban:1.1.0
     network_mode: host
     restart: unless-stopped
     security_opt:
@@ -224,10 +275,14 @@ services:
     cap_drop:
       - ALL
     container_name: gatus
-    image: twinproduction/gatus
+    dns:
+      - 100.100.1.1
+      - 100.100.1.2
+      - 100.100.1.3
+    image: twinproduction/gatus:v5.33.1
     labels:
       traefik.enable: true
-      traefik.http.routers.gatus.middlewares: external@file
+      traefik.http.routers.gatus.middlewares: external-bypass@file
       traefik.http.routers.gatus.rule: Host(`status.${DOMAIN}`)
       traefik.http.services.gatus.loadbalancer.server.port: 8080
     networks:
@@ -256,17 +311,7 @@ services:
     depends_on:
       pangolin:
         condition: service_healthy
-    entrypoint:
-      - /bin/sh
-      - -lc
-      - |
-        set -e
-        iptables -t nat -C POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-        iptables -C FORWARD -i eth0 -o wg0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i eth0 -o wg0 -j ACCEPT
-        iptables -C FORWARD -i wg0 -o eth0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o eth0 -j ACCEPT
-        exec /entrypoint.sh "$@"
-      - --
-    image: docker.io/fosrl/gerbil:1.3.0
+    image: fosrl/gerbil:1.3.0
     networks:
       - external
     ports:
@@ -290,7 +335,7 @@ services:
     healthcheck:
       interval: 30s
       retries: 3
-      test: [ "CMD-SHELL", "wget -q -O- http://localhost:7880/ > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:7880/ || exit 1" ]
       timeout: 10s
     image: xavierh/goaccess-for-nginxproxymanager:v1.1.38
     labels:
@@ -301,12 +346,13 @@ services:
       traefik.http.services.goaccess.loadbalancer.server.port: 7880
     networks:
       - external
+      - internal
     restart: unless-stopped
     volumes:
       - ./docker/traefik/logs:/opt/log:ro
 
   # ===========================================================================
-  # Pangolin - external Management UI
+  # Pangolin - Service Tunneling Management UI
   # ===========================================================================
   pangolin:
     container_name: pangolin
@@ -315,7 +361,7 @@ services:
       retries: 15
       test: [ "CMD", "curl", "-f", "http://localhost:3001/api/v1/" ]
       timeout: 10s
-    image: docker.io/fosrl/pangolin:1.13.1
+    image: fosrl/pangolin:1.14.1
     networks:
       - external
     restart: unless-stopped
@@ -323,48 +369,36 @@ services:
       - ./docker/pangolin:/app/config
 
   # ===========================================================================
-  # Pocket ID - Authentication & Identity Provider (OIDC)
+  # Pangolin Router - Host Routes & Container NAT Sidecar
   # ===========================================================================
-  pocket-id:
-    cap_drop:
-      - ALL
-    container_name: pocket-id
+  pangolin-router:
+    container_name: pangolin-router
     depends_on:
-      traefik:
-        condition: service_healthy
-    env_file: .env
+      gerbil:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        apk add -q --no-cache iproute2; G=$$GERBIL_CONTAINER_NAME; S=$$DOCKER_SUBNET
+        while sleep 30; do
+          I=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $$G 2>/dev/null | awk '{print $$1}')
+          [ -z "$$I" ] && continue
+          for C in $$(docker exec $$G ip r show dev wg0 2>/dev/null | awk '/^100\./{print $$1}'); do
+            ip r replace $$C via $$I
+            R="-s $$S -d $$C -j MASQUERADE"; D="docker exec $$G iptables -t nat"
+            $$D -C POSTROUTING $$R 2>/dev/null || $$D -A POSTROUTING $$R
+          done
+        done
     environment:
-      APP_URL: "https://pocket.${DOMAIN}"
-      ENCRYPTION_KEY: "${POCKET_ID_ENCRYPTION_KEY:?Pocket ID encryption key required}"
-      PGID: "1000"
-      PUBLIC_URL: "https://pocket.${DOMAIN}"
-      PUID: "1000"
-      TRUST_PROXY: "true"
-      TZ: "${TZ:-UTC}"
-    healthcheck:
-      interval: 1m30s
-      retries: 2
-      start_period: 10s
-      test: [ "CMD", "/app/pocket-id", "healthcheck" ]
-      timeout: 5s
-    hostname: pocket-id
-    image: ghcr.io/pocket-id/pocket-id:v1.16.0
-    labels:
-      traefik.enable: true
-      traefik.http.routers.pocket-id.middlewares: external@file
-      traefik.http.routers.pocket-id.rule: Host(`pocket.${DOMAIN}`)
-      traefik.http.services.pocket-id.loadbalancer.server.port: 1411
-    networks:
-      - external
-      - internal
+      DOCKER_SUBNET: 172.18.0.0/16
+      GERBIL_CONTAINER_NAME: gerbil
+    image: docker:29.1.3-cli-alpine3.23
+    network_mode: host
+    privileged: true
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    tmpfs:
-      - /tmp
-    user: 1000:1000
     volumes:
-      - ./docker/pocket-id/data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # ===========================================================================
   # Tailscale - Mesh VPN
@@ -383,7 +417,7 @@ services:
       TS_EXTRA_ARGS: --accept-routes=true --advertise-exit-node=true
       TS_SOCKET: /var/run/tailscale/tailscaled.sock
       TS_STATE_DIR: /var/lib/tailscale
-      TS_USERSPACE: "false"
+      TS_USERSPACE: false
     healthcheck:
       interval: 30s
       retries: 3
@@ -404,7 +438,6 @@ services:
   traefik:
     cap_add:
       - NET_BIND_SERVICE
-      - NET_ADMIN
     cap_drop:
       - ALL
     container_name: traefik
@@ -413,11 +446,11 @@ services:
         condition: service_healthy
       gerbil:
         condition: service_started
+      tailscale:
+        condition: service_healthy
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    entrypoint:
-      - /custom-entrypoint.sh
     environment:
       # Cloudflare DNS Challenge for Let's Encrypt
       # Let's Encrypt email
@@ -426,27 +459,17 @@ services:
       # CrowdSec bouncer key (generate after first start)
       CROWDSEC_BOUNCER_KEY: ${CROWDSEC_BOUNCER_KEY:-}
       DOMAIN: ${DOMAIN:?Domain required}
-      # Pocket ID OIDC Configuration
-      POCKET_ID_CLIENT_ID: ${POCKET_ID_CLIENT_ID:?Pocket ID Client ID required}
-      POCKET_ID_CLIENT_SECRET: ${POCKET_ID_CLIENT_SECRET:?Pocket ID Client Secret required}
-      POCKET_ID_OIDC_SECRET: ${POCKET_ID_OIDC_SECRET:?Pocket ID OIDC Secret required}
+      EXTERNAL_IP: ${EXTERNAL_IP:?external IP required}
       # Timezone
       TZ: ${TZ:-UTC}
-    # Note: Traefik dashboard is configured in docker/traefik/dynamic/dashboard.yaml
     healthcheck:
       interval: 30s
       retries: 3
       start_period: 30s
-      test: [ "CMD-SHELL", "wget -q -O- http://localhost:80/ping || exit 1" ]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:80/ping || exit 1" ]
       timeout: 10s
     hostname: traefik
-    image: traefik:v3.6.4
-    labels:
-      traefik.enable: true
-      traefik.http.routers.traefik.middlewares: internal@file
-      traefik.http.routers.traefik.rule: Host(`traefik.mothership.${DOMAIN}`)
-      traefik.http.routers.traefik.service: traefik
-      traefik.http.services.traefik.loadbalancer.server.port: 8080
+    image: traefik:v3.6.5
     networks:
       - external
       - internal
@@ -460,8 +483,6 @@ services:
     volumes:
       # Docker socket (read-only for security)
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Custom entrypoint for WireGuard routing
-      - ./docker/traefik/entrypoint.sh:/custom-entrypoint.sh:ro
       # Traefik configuration
       - ./docker/traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
       - ./docker/traefik/dynamic:/etc/traefik/dynamic:ro
@@ -484,10 +505,10 @@ services:
       - ALL
     container_name: whoami
     hostname: whoami
-    image: traefik/whoami
+    image: traefik/whoami:v1.11.0
     labels:
       traefik.enable: true
-      traefik.http.routers.whoami.middlewares: internal@file
+      traefik.http.routers.whoami.middlewares: external-basic@file
       traefik.http.routers.whoami.rule: Host(`whoami.${DOMAIN}`)
       traefik.http.services.whoami.loadbalancer.server.port: 80
     networks:

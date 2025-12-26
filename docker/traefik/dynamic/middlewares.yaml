@@ -1,152 +1,75 @@
 # =============================================================================
-# Traefik Dynamic Configuration - Security Middlewares
-# =============================================================================
-# Simplified middleware naming and structure for clarity
+# Traefik Middleware Configuration
 # =============================================================================
 
 http:
   middlewares:
 
-    # -------------------------------------------------------------------------
-    # auth-oidc - OpenID Connect Authentication via Pocket ID
-    # -------------------------------------------------------------------------
-    # Requires users to authenticate via Pocket ID before accessing services.
-    # Uses the OAuth 2.0 Authorization Code flow with PKCE.
-    #
-    # Flow:
-    #   1. User visits protected service
-    #   2. Redirected to Pocket ID login page
-    #   3. User authenticates (password, passkey, etc.)
-    #   4. Redirected back to service with auth token
-    #   5. Token validated, access granted
-    #
-    # Session cookies maintain auth state across requests.
-    #
-    # Scopes requested:
-    #   - openid: Required for OIDC
-    #   - profile: User's name
-    #   - email: User's email
-    #   - groups: Group memberships (for authorization)
-    #
-    # SETUP REQUIRED:
-    #   1. Create OIDC client in Pocket ID admin
-    #   2. Set redirect URL: https://*.${DOMAIN}/oidc/callback
-    #   3. Set logout URL: https://*.${DOMAIN}/oidc/logout
-    #   4. Configure env vars: POCKET_ID_CLIENT_ID, POCKET_ID_CLIENT_SECRET,
-    #      POCKET_ID_OIDC_SECRET
-    # -------------------------------------------------------------------------
-    auth-oidc:
-      plugin:
-        traefik-oidc-auth:
-          LogoutUri: https://{host}/oidc/logout
-          Provider:
-            ClientId: '{{ env "POCKET_ID_CLIENT_ID" }}'
-            ClientSecret: '{{ env "POCKET_ID_CLIENT_SECRET" }}'
-            Url: https://pocket.{{ env "DOMAIN" }}
-          RedirectUri: https://{host}/oidc/callback
-          Scopes:
-            - openid
-            - profile
-            - email
-            - groups
-          Secret: '{{ env "POCKET_ID_OIDC_SECRET" }}'
+    # =========================================================================
+    # BUILDING BLOCKS
+    # =========================================================================
+    # These are individual middleware components that are combined into chains.
+    # Do not use these directly - use the chains defined at the bottom.
+    # =========================================================================
 
     # -------------------------------------------------------------------------
-    # crowdsec - Intrusion Detection & Prevention (IDS/IPS)
+    # headers - Security Response Headers
     # -------------------------------------------------------------------------
-    # Integrates with CrowdSec security engine to block malicious IPs.
-    # CrowdSec analyzes logs and shares threat intelligence with a global
-    # community to identify:
-    #   - Brute force attacks
-    #   - Vulnerability scanners
-    #   - Known malicious IPs
-    #   - Bot networks
+    # Adds security headers to all responses. These headers instruct browsers
+    # to enable various security features.
     #
-    # Mode: stream - Traefik streams decisions from CrowdSec LAPI
-    # updateIntervalSeconds: How often to fetch new ban decisions
-    #
-    # forwardedHeadersTrustedIPs: Cloudflare IPs that are trusted to set
-    # the CF-Connecting-IP header (must match external-ips allowlist)
-    #
-    # clientTrustedIPs: Internal IPs that bypass CrowdSec checks
+    # Headers applied:
+    #   - X-XSS-Protection: Enables browser XSS filtering
+    #   - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
+    #   - X-Frame-Options: SAMEORIGIN - Prevents clickjacking
+    #   - Strict-Transport-Security: Forces HTTPS for 1 year
+    #   - Referrer-Policy: Controls referrer information leakage
+    #   - Permissions-Policy: Disables camera, microphone, geolocation, payment
+    #   - X-Robots-Tag: Prevents search engine indexing
+    #   - Server: Removed to hide server identity
     # -------------------------------------------------------------------------
-    crowdsec:
-      plugin:
-        crowdsec:
-          clientTrustedIPs:
-            - 10.0.0.0/8
-            - 100.64.0.0/10
-            - 172.16.0.0/12
-            - 192.168.0.0/16
-          crowdsecAppsecEnabled: false
-          crowdsecAppsecFailureBlock: true
-          crowdsecAppsecHost: crowdsec:7422
-          crowdsecAppsecUnreachableBlock: false
-          crowdsecLapiHost: crowdsec:8080
-          crowdsecLapiKey: '{{ env "CROWDSEC_BOUNCER_KEY" }}'
-          crowdsecLapiScheme: http
-          crowdsecMode: stream
-          defaultDecisionSeconds: 60
-          enabled: true
-          forwardedHeadersCustomName: CF-Connecting-IP
-          forwardedHeadersTrustedIPs:
-            - 103.21.244.0/22
-            - 103.22.200.0/22
-            - 103.31.4.0/22
-            - 104.16.0.0/13
-            - 104.24.0.0/14
-            - 108.162.192.0/18
-            - 131.0.72.0/22
-            - 141.101.64.0/18
-            - 162.158.0.0/15
-            - 172.64.0.0/13
-            - 173.245.48.0/20
-            - 188.114.96.0/20
-            - 190.93.240.0/20
-            - 197.234.240.0/22
-            - 198.41.128.0/17
-            - 2400:cb00::/32
-            - 2405:8100::/32
-            - 2405:b500::/32
-            - 2606:4700::/32
-            - 2803:f800::/32
-            - 2a06:98c0::/29
-            - 2c0f:f248::/32
-          httpTimeoutSeconds: 10
-          logLevel: INFO
-          updateIntervalSeconds: 15
+    headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        customFrameOptionsValue: SAMEORIGIN
+        customResponseHeaders:
+          server: ""
+          X-Download-Options: noopen
+          X-Permitted-Cross-Domain-Policies: none
+          X-Robots-Tag: noindex, nofollow
+        frameDeny: true
+        permissionsPolicy: camera=(), microphone=(), geolocation=(), payment=()
+        referrerPolicy: strict-origin-when-cross-origin
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
 
     # -------------------------------------------------------------------------
-    # external - Public Internet Access via Cloudflare
+    # internal-ips - Tailscale & Private Network Allowlist
     # -------------------------------------------------------------------------
-    # Use for: Auth providers, public status pages, landing pages
+    # Restricts access to requests originating from:
+    #   - Tailscale CGNAT range (100.64.0.0/10)
+    #   - Tailscale IPv6 (fd7a:115c:a1e0::/48)
+    #   - RFC1918 private ranges (10.x, 172.16-31.x, 192.168.x)
+    #   - Localhost
     #
-    # Security layers (in order):
-    #   1. external-ips: Only Cloudflare proxy IPs + trusted servers allowed
-    #   2. real-ip: Extract real client IP from CF headers
-    #   3. crowdsec: Block known malicious IPs
-    #   4. ratelimit: Prevent request flooding
-    #   5. geoblock: Allow only configured countries
-    #   6. headers: Security headers applied
+    # All other IPs are rejected with 403 Forbidden.
     #
-    # NO AUTHENTICATION - anyone can access after passing security checks.
-    # Use only for services that handle their own auth (Authelia, Pocket ID)
-    # or truly public services (status pages).
-    #
-    # Example services: Authelia, Pocket ID, Gatus status page
-    #
-    # Usage:
-    #   traefik.http.routers.myapp.middlewares: external@file
+    # ipStrategy.depth: 0 means use the direct connecting IP (no proxy trust)
     # -------------------------------------------------------------------------
-    external:
-      chain:
-        middlewares:
-          - external-ips
-          - real-ip
-          - crowdsec
-          - ratelimit
-          - geoblock
-          - headers
+    internal-ips:
+      ipAllowList:
+        ipStrategy:
+          depth: 0
+        sourceRange:
+          - 100.64.0.0/10
+          - fd7a:115c:a1e0::/48
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+          - 127.0.0.1/32
+          - "::1/128"
 
     # -------------------------------------------------------------------------
     # external-ips - Cloudflare + Internal Networks Allowlist
@@ -164,7 +87,7 @@ http:
     # IP ranges are maintained by Cloudflare:
     #   https://www.cloudflare.com/ips/
     #
-    # IMPORTANT: Keep Cloudflare ranges updated. Cloudflare adds new ranges
+    # IMPORTANT: Keep these ranges updated. Cloudflare adds new ranges
     # periodically. Outdated ranges will block legitimate traffic.
     # -------------------------------------------------------------------------
     external-ips:
@@ -210,37 +133,126 @@ http:
           - 2c0f:f248::/32
 
     # -------------------------------------------------------------------------
-    # external-oidc - Public Access with OIDC Authentication
+    # real-ip - Extract Real Client IP from Headers
     # -------------------------------------------------------------------------
-    # Use for: Services that need internet access but require login
+    # When behind Cloudflare, the connecting IP is Cloudflare's proxy, not
+    # the real client. This middleware extracts the real client IP from
+    # the CF-Connecting-IP or X-Forwarded-For headers.
     #
-    # Security layers (in order):
-    #   1. external-ips: Only Cloudflare proxy IPs allowed
-    #   2. real-ip: Extract real client IP from CF headers
-    #   3. crowdsec: Block known malicious IPs
-    #   4. ratelimit: Prevent request flooding
-    #   5. geoblock: Allow only configured countries
-    #   6. auth-oidc: Require Pocket ID login
-    #   7. headers: Security headers applied
+    # This is critical for:
+    #   - Rate limiting by real client IP
+    #   - CrowdSec threat detection
+    #   - Access logging
+    #   - Geo-blocking
     #
-    # Users must authenticate via Pocket ID before accessing the service.
-    #
-    # Example services: Remote admin panels, private dashboards exposed
-    # to the internet for remote access
-    #
-    # Usage:
-    #   traefik.http.routers.myapp.middlewares: external-oidc@file
+    # excludednets: IPs that should never be treated as proxies
     # -------------------------------------------------------------------------
-    external-oidc:
-      chain:
-        middlewares:
-          - external-ips
-          - real-ip
-          - crowdsec
-          - ratelimit
-          - geoblock
-          - auth-oidc
-          - headers
+    real-ip:
+      plugin:
+        real-ip:
+          excludednets:
+            - 127.0.0.0/8
+
+    # -------------------------------------------------------------------------
+    # ratelimit - Request Rate Limiting
+    # -------------------------------------------------------------------------
+    # Limits requests per client to prevent abuse and DoS attacks.
+    #
+    # Configuration:
+    #   - average: 100 requests per minute sustained
+    #   - burst: 200 requests allowed in a burst
+    #   - period: 1 minute window
+    #
+    # sourceCriterion: Uses CF-Connecting-IP header to identify clients
+    # (requires real-ip middleware to run first in the chain)
+    #
+    # When limit is exceeded, returns 429 Too Many Requests.
+    # -------------------------------------------------------------------------
+    ratelimit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: CF-Connecting-IP
+
+    # -------------------------------------------------------------------------
+    # inflight - Concurrency Limiting
+    # -------------------------------------------------------------------------
+    # Limits the number of concurrent requests that can be processed.
+    # This complements rate limiting by protecting upstreams from
+    # request pileups during bursts.
+    #
+    # NOTE: If you see legitimate requests blocked under load, raise this.
+    # -------------------------------------------------------------------------
+    inflight:
+      inFlightReq:
+        amount: 100
+
+    # -------------------------------------------------------------------------
+    # crowdsec - Intrusion Detection & Prevention (IDS/IPS)
+    # -------------------------------------------------------------------------
+    # Integrates with CrowdSec security engine to block malicious IPs.
+    # CrowdSec analyzes logs and shares threat intelligence with a global
+    # community to identify:
+    #   - Brute force attacks
+    #   - Vulnerability scanners
+    #   - Known malicious IPs
+    #   - Bot networks
+    #
+    # Mode: stream - Traefik streams decisions from CrowdSec LAPI
+    # updateIntervalSeconds: How often to fetch new ban decisions
+    #
+    # forwardedHeadersTrustedIPs: Cloudflare IPs that are trusted to set
+    # the CF-Connecting-IP header (must match external-ips allowlist)
+    #
+    # clientTrustedIPs: Internal IPs that bypass CrowdSec checks
+    # -------------------------------------------------------------------------
+    crowdsec:
+      plugin:
+        crowdsec:
+          clientTrustedIPs:
+            - 10.0.0.0/8
+            - 100.64.0.0/10
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+          crowdsecAppsecEnabled: false
+          crowdsecAppsecFailureBlock: true
+          crowdsecAppsecHost: crowdsec:7422
+          crowdsecAppsecUnreachableBlock: false
+          crowdsecLapiHost: crowdsec:8080
+          crowdsecLapiKey: 'lvz+xudtKWBIL65Rh9ekTO6B0eh2OyRPkXY/VXrrj5o'
+          crowdsecLapiScheme: http
+          crowdsecMode: stream
+          defaultDecisionSeconds: 60
+          enabled: true
+          forwardedHeadersCustomName: CF-Connecting-IP
+          forwardedHeadersTrustedIPs:
+            - 103.21.244.0/22
+            - 103.22.200.0/22
+            - 103.31.4.0/22
+            - 104.16.0.0/13
+            - 104.24.0.0/14
+            - 108.162.192.0/18
+            - 131.0.72.0/22
+            - 141.101.64.0/18
+            - 162.158.0.0/15
+            - 172.64.0.0/13
+            - 173.245.48.0/20
+            - 188.114.96.0/20
+            - 190.93.240.0/20
+            - 197.234.240.0/22
+            - 198.41.128.0/17
+            - 2400:cb00::/32
+            - 2405:8100::/32
+            - 2405:b500::/32
+            - 2606:4700::/32
+            - 2803:f800::/32
+            - 2a06:98c0::/29
+            - 2c0f:f248::/32
+          httpTimeoutSeconds: 10
+          logLevel: INFO
+          updateIntervalSeconds: 15
 
     # -------------------------------------------------------------------------
     # geoblock - Country-Based Access Control
@@ -272,7 +284,6 @@ http:
             - 192.168.0.0/16
             # Trusted public IPs (servers for health checks / hairpin NAT)
             - '{{ env "EXTERNAL_IP" }}/32'
-            - '{{ env "STARGATE_IP" }}/32'
           api: https://get.geojs.io/v1/ip/country/{ip}
           apiTimeoutMs: 1000
           blackListMode: false
@@ -288,37 +299,44 @@ http:
           unknownCountryApiResponse: nil
 
     # -------------------------------------------------------------------------
-    # headers - Security Response Headers
+    # authelia - Authelia ForwardAuth Middleware (Standard)
     # -------------------------------------------------------------------------
-    # Adds security headers to all responses. These headers instruct browsers
-    # to enable various security features.
-    #
-    # Headers applied:
-    #   - X-XSS-Protection: Enables browser XSS filtering
-    #   - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
-    #   - X-Frame-Options: SAMEORIGIN - Prevents clickjacking
-    #   - Strict-Transport-Security: Forces HTTPS for 1 year
-    #   - Referrer-Policy: Controls referrer information leakage
-    #   - Permissions-Policy: Disables camera, microphone, geolocation, payment
-    #   - X-Robots-Tag: Prevents search engine indexing
-    #   - Server: Removed to hide server identity
+    # Delegates authentication to Authelia for 2FA.
+    # Authelia will redirect unauthenticated users to the login page.
+    # Uses the ForwardAuth endpoint for seamless integration.
     # -------------------------------------------------------------------------
-    headers:
-      headers:
-        browserXssFilter: true
-        contentTypeNosniff: true
-        customFrameOptionsValue: SAMEORIGIN
-        customResponseHeaders:
-          X-Download-Options: noopen
-          X-Permitted-Cross-Domain-Policies: none
-          X-Robots-Tag: noindex, nofollow
-          server: ""
-        frameDeny: true
-        permissionsPolicy: camera=(), microphone=(), geolocation=(), payment=()
-        referrerPolicy: strict-origin-when-cross-origin
-        stsIncludeSubdomains: true
-        stsPreload: true
-        stsSeconds: 31536000
+    authelia:
+      forwardAuth:
+        address: http://authelia:9091/api/authz/forward-auth
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Email
+          - Remote-Name
+
+    # -------------------------------------------------------------------------
+    # authelia-basic - Authelia ForwardAuth with Basic Auth Support (1FA)
+    # -------------------------------------------------------------------------
+    # Same as authelia middleware but with authelia_url parameter.
+    # This is used for 1FA authentication (password only).
+    # -------------------------------------------------------------------------
+    authelia-basic:
+      forwardAuth:
+        address: 'http://authelia:9091/api/authz/forward-auth?authelia_url=https://auth.{{ env "DOMAIN" }}'
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Email
+          - Remote-Name
+
+    # =========================================================================
+    # MIDDLEWARE CHAINS
+    # =========================================================================
+    # These are the middlewares you should use in service labels.
+    # Each chain combines building blocks in the correct order.
+    # =========================================================================
 
     # -------------------------------------------------------------------------
     # internal - Tailscale VPN Access Only (DEFAULT)
@@ -341,71 +359,88 @@ http:
           - headers
 
     # -------------------------------------------------------------------------
-    # internal-ips - Tailscale & Private Network Allowlist
+    # external - Public Internet Access (default)
     # -------------------------------------------------------------------------
-    # Restricts access to requests originating from:
-    #   - Tailscale CGNAT range (100.64.0.0/10)
-    #   - Tailscale IPv6 (fd7a:115c:a1e0::/48)
-    #   - RFC1918 private ranges (10.x, 172.16-31.x, 192.168.x)
-    #   - Localhost
+    # For all externally exposed services
     #
-    # All other IPs are rejected with 403 Forbidden.
+    # Security layers (in order):
+    #   1. external-ips: Only Cloudflare proxy IPs + trusted servers allowed
+    #   2. real-ip: Extract real client IP from CF headers
+    #   3. crowdsec: Block known malicious IPs
+    #   4. ratelimit: Prevent request flooding
+    #   5. inflight: Limit concurrent requests
+    #   6. geoblock: Allow only configured countries
+    #   7. authelia: Require Authelia 2FA login
+    #   8. headers: Security headers applied
     #
-    # ipStrategy.depth: 0 means use the direct connecting IP (no proxy trust)
+    # Usage:
+    #   traefik.http.routers.myapp.middlewares: external@file
     # -------------------------------------------------------------------------
-    internal-ips:
-      ipAllowList:
-        ipStrategy:
-          depth: 0
-        sourceRange:
-          - 100.64.0.0/10
-          - fd7a:115c:a1e0::/48
-          - 10.0.0.0/8
-          - 172.16.0.0/12
-          - 192.168.0.0/16
-          - 127.0.0.1/32
-          - "::1/128"
+    external:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - inflight
+          - geoblock
+          - authelia
+          - headers
 
     # -------------------------------------------------------------------------
-    # ratelimit - Request Rate Limiting
+    # external-basic - Public Internet Access (limited auth)
     # -------------------------------------------------------------------------
-    # Limits requests per client to prevent abuse and DoS attacks.
+    # For services that require basic authentication
     #
-    # Configuration:
-    #   - average: 100 requests per minute sustained
-    #   - burst: 200 requests allowed in a burst
-    #   - period: 1 minute window
+    # Security layers (in order):
+    #   1. external-ips: Only Cloudflare proxy IPs + trusted servers allowed
+    #   2. real-ip: Extract real client IP from CF headers
+    #   3. crowdsec: Block known malicious IPs
+    #   4. ratelimit: Prevent request flooding
+    #   5. inflight: Limit concurrent requests
+    #   6. geoblock: Allow only configured countries
+    #   7. authelia-basic: Require Authelia 1FA login
+    #   8. headers: Security headers applied
     #
-    # sourceCriterion: Uses CF-Connecting-IP header to identify clients
-    # (requires real-ip middleware to run first in the chain)
-    #
-    # When limit is exceeded, returns 429 Too Many Requests.
+    # Usage:
+    #   traefik.http.routers.myapp.middlewares: external-basic@file
     # -------------------------------------------------------------------------
-    ratelimit:
-      rateLimit:
-        average: 100
-        burst: 200
-        period: 1m
-        sourceCriterion:
-          requestHeaderName: CF-Connecting-IP
+    external-basic:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - inflight
+          - geoblock
+          - authelia-basic
+          - headers
 
     # -------------------------------------------------------------------------
-    # real-ip - Extract Real Client IP from Headers
+    # external-bypass - Public Internet Access (no auth)
     # -------------------------------------------------------------------------
-    # When behind Cloudflare, the connecting IP is Cloudflare's proxy, not
-    # the real client. This middleware extracts the real client IP from
-    # the CF-Connecting-IP or X-Forwarded-For headers.
+    # For essentials such as auth providers, public status pages
     #
-    # This is critical for:
-    #   - Rate limiting by real client IP
-    #   - CrowdSec threat detection
-    #   - Access logging
-    #   - Geo-blocking
+    # Security layers (in order):
+    #   1. external-ips: Only Cloudflare proxy IPs + trusted servers allowed
+    #   2. real-ip: Extract real client IP from CF headers
+    #   3. crowdsec: Block known malicious IPs
+    #   4. ratelimit: Prevent request flooding
+    #   5. geoblock: Allow only configured countries
+    #   6. headers: Security headers applied
     #
-    # excludednets: IPs that should never be treated as proxies
+    # Usage:
+    #   traefik.http.routers.myapp.middlewares: external-bypass@file
     # -------------------------------------------------------------------------
-    real-ip:
-      plugin:
-        real-ip:
-          excludednets:
-            - 127.0.0.0/8
+    external-bypass:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - ratelimit
+          - inflight
+          - geoblock
+          - headers
