@@ -121,6 +121,33 @@ services:
       - ./docker/authelia:/config
 
   # ===========================================================================
+  # Beszel Agent - System Monitoring Agent
+  # ===========================================================================
+  beszel-agent:
+    cap_drop:
+      - ALL
+    container_name: beszel-agent
+    environment:
+      HUB_URL: https://beszel.${DOMAIN}
+      KEY: ${BESZEL_AGENT_KEY:?Beszel agent key required}
+      LISTEN: 45876
+      TOKEN: ${BESZEL_AGENT_TOKEN:?Beszel agent token required}
+    healthcheck:
+      interval: 30s
+      retries: 3
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:45876/ || exit 1" ]
+      timeout: 10s
+    image: henrygd/beszel-agent
+    network_mode: host
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./docker/beszel-agent:/var/lib/beszel-agent
+      - /:/extra-filesystems/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ===========================================================================
   # Cloudflared - Cloudflare Tunnel Client
   # ===========================================================================
   cloudflared:
