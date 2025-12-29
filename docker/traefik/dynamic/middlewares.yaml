@@ -299,15 +299,15 @@ http:
           unknownCountryApiResponse: nil
 
     # -------------------------------------------------------------------------
-    # authelia - Authelia ForwardAuth Middleware (Standard)
+    # auth - Authelia ForwardAuth Middleware (Standard)
     # -------------------------------------------------------------------------
     # Delegates authentication to Authelia for 2FA.
     # Authelia will redirect unauthenticated users to the login page.
     # Uses the ForwardAuth endpoint for seamless integration.
     # -------------------------------------------------------------------------
-    authelia:
+    auth:
       forwardAuth:
-        address: http://authelia:9091/api/authz/forward-auth
+        address: 'https://auth.{{ env "DOMAIN" }}/api/authz/forward-auth'
         trustForwardHeader: true
         authResponseHeaders:
           - Remote-User
@@ -316,14 +316,14 @@ http:
           - Remote-Name
 
     # -------------------------------------------------------------------------
-    # authelia-basic - Authelia ForwardAuth with Basic Auth Support (1FA)
+    # basic-auth - Authelia ForwardAuth with Basic Auth Support (1FA)
     # -------------------------------------------------------------------------
-    # Same as authelia middleware but with authelia_url parameter.
+    # Same as auth middleware but with authelia_url parameter.
     # This is used for 1FA authentication (password only).
     # -------------------------------------------------------------------------
-    authelia-basic:
+    basic-auth:
       forwardAuth:
-        address: 'http://authelia:9091/api/authz/forward-auth?authelia_url=https://auth.{{ env "DOMAIN" }}'
+        address: 'https://auth.{{ env "DOMAIN" }}/api/authz/forward-auth?authelia_url=https://auth.{{ env "DOMAIN" }}'
         trustForwardHeader: true
         authResponseHeaders:
           - Remote-User
@@ -370,7 +370,7 @@ http:
     #   4. ratelimit: Prevent request flooding
     #   5. inflight: Limit concurrent requests
     #   6. geoblock: Allow only configured countries
-    #   7. authelia: Require Authelia 2FA login
+    #   7. auth: Require Authelia 2FA login
     #   8. headers: Security headers applied
     #
     # Usage:
@@ -385,7 +385,7 @@ http:
           - ratelimit
           - inflight
           - geoblock
-          - authelia
+          - auth
           - headers
 
     # -------------------------------------------------------------------------
@@ -400,7 +400,7 @@ http:
     #   4. ratelimit: Prevent request flooding
     #   5. inflight: Limit concurrent requests
     #   6. geoblock: Allow only configured countries
-    #   7. authelia-basic: Require Authelia 1FA login
+    #   7. basic-auth: Require Authelia 1FA login
     #   8. headers: Security headers applied
     #
     # Usage:
@@ -415,7 +415,7 @@ http:
           - ratelimit
           - inflight
           - geoblock
-          - authelia-basic
+          - basic-auth
           - headers
 
     # -------------------------------------------------------------------------
