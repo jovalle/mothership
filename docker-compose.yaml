@@ -202,6 +202,39 @@ services:
       - ./docker/crowdsec-web-ui:/app/config
 
   # ===========================================================================
+  # Docker Socket Proxy - Read-only Docker Socket
+  # ===========================================================================
+  docker-socket-proxy:
+    container_name: docker-socket-proxy
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      POST: 0
+      SERVICES: 1
+      TASKS: 1
+      VERSION: 1
+      VOLUMES: 1
+    healthcheck:
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:2375/_ping || exit 1" ]
+      timeout: 10s
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.4.2
+    labels:
+      traefik.enable: false
+    ports:
+      - ${INTERNAL_IP}:2375:2375
+    privileged: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ===========================================================================
   # Fail2Ban - Log-based IP Banning
   # ===========================================================================
   fail2ban:
