@@ -15,15 +15,10 @@ maxretry = 5
 # Backend for log monitoring
 backend = auto
 
-# Use iptables for banning
-banaction = iptables-multiport
+# Use iptables for banning (all ports since we're monitoring web traffic)
+banaction = iptables-allports
 
-# Email notifications (optional)
-# destemail = admin@example.com
-# sender = fail2ban@example.com
-# mta = sendmail
-
-# Action: ban and optionally send email
+# Action: ban only (inherits action_ from jail.conf)
 action = %(action_)s
 
 [traefik-auth]

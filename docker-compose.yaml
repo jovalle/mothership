@@ -232,9 +232,9 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      # Fail2Ban configuration
-      - ./docker/fail2ban/jail.local:/etc/fail2ban/jail.local:ro
-      - ./docker/fail2ban/filter.d:/etc/fail2ban/filter.d:ro
+      # Fail2Ban configuration (linuxserver image uses /config/fail2ban)
+      - ./docker/fail2ban/jail.local:/config/fail2ban/jail.d/custom.local:ro
+      - ./docker/fail2ban/filter.d:/config/fail2ban/filter.d:ro
       # Fail2Ban data persistence
       - ./docker/fail2ban/data:/data
       # Traefik logs for analysis
