@@ -79,11 +79,6 @@ services:
       KEY: ${BESZEL_AGENT_KEY:?Beszel agent key required}
       LISTEN: 45876
       TOKEN: ${BESZEL_AGENT_TOKEN:?Beszel agent token required}
-    healthcheck:
-      interval: 30s
-      retries: 3
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost:45876/ || exit 1" ]
-      timeout: 10s
     image: henrygd/beszel-agent
     network_mode: host
     restart: unless-stopped
