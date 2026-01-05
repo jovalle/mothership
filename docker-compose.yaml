@@ -171,13 +171,11 @@ services:
       - /var/log/syslog:/var/log/syslog:ro
       - /var/log/auth.log:/var/log/auth.log:ro
   crowdsec-web-ui:
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
     cap_drop:
       - ALL
+    command: ["bun", "index.js"]
     container_name: crowdsec-web-ui
+    entrypoint: []
     environment:
       - CROWDSEC_URL=http://crowdsec:8080
       - CROWDSEC_USER=crowdsec-web-ui
@@ -198,6 +196,7 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    user: 1000:1000
     volumes:
       - ./docker/crowdsec-web-ui/config:/app/config
       - ./docker/crowdsec-web-ui/data:/app/data
