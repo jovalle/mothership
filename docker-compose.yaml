@@ -236,40 +236,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # ===========================================================================
-  # Fail2Ban - Log-based IP Banning
-  # ===========================================================================
-  fail2ban:
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    container_name: fail2ban
-    environment:
-      F2B_DB_PURGE_AGE: 7d
-      F2B_LOG_LEVEL: INFO
-      F2B_LOG_TARGET: STDOUT
-      TZ: ${TZ:-UTC}
-    healthcheck:
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      test: [ "CMD", "fail2ban-client", "status" ]
-      timeout: 10s
-    hostname: fail2ban
-    image: linuxserver/fail2ban
-    network_mode: host
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      # Fail2Ban configuration (linuxserver image uses /config/fail2ban)
-      - ./docker/fail2ban/jail.local:/config/fail2ban/jail.d/custom.local:ro
-      - ./docker/fail2ban/filter.d:/config/fail2ban/filter.d:ro
-      # Fail2Ban data persistence
-      - ./docker/fail2ban/data:/data
-      # Traefik logs for analysis
-      - ./docker/traefik/logs:/var/log/traefik:ro
-
-  # ===========================================================================
   # Gatus - Status Monitoring Dashboard
   # ===========================================================================
   gatus:
@@ -496,7 +462,7 @@ services:
       - ./docker/traefik/certs:/etc/traefik/certs
       # Pangolin certificates storage
       - ./docker/pangolin/letsencrypt:/letsencrypt
-      # Logs (shared with CrowdSec, Fail2Ban, GoAccess)
+      # Logs (shared with CrowdSec and GoAccess)
       - ./docker/traefik/logs:/var/log/traefik
       # Pangolin logs
       - ./docker/pangolin/traefik/logs:/var/log/traefik-pangolin

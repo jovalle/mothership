@@ -2,7 +2,7 @@
 # Traefik Static Configuration - Hardened for Internet Exposure
 # =============================================================================
 # Security layers: CrowdSec, Rate Limiting, GeoBlocking, Cloudflare IP Whitelist,
-# Real IP extraction, Let's Encrypt TLS, Fail2Ban monitoring
+# Real IP extraction, Let's Encrypt TLS
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -201,7 +201,7 @@ providers:
     pollInterval: "5s"
 
 # -----------------------------------------------------------------------------
-# Logging - Essential for CrowdSec and Fail2Ban analysis
+# Logging - Essential for CrowdSec and GoAccess analysis
 # -----------------------------------------------------------------------------
 log:
   level: WARN
