@@ -94,13 +94,17 @@ entryPoints:
   websecure:
     address: ":443"
     http:
-      # NOTE: Default middleware removed - services must explicitly set their
-      # access level via labels:
-      #   - Internal only (Tailscale): traefik.http.routers.<service>.middlewares: internal@file
-      #   - External (Cloudflare): traefik.http.routers.<service>.middlewares: external@file
-      #   - External + OIDC: traefik.http.routers.<service>.middlewares: external-oidc@file
+      # Global security middleware applies baseline protection to ALL routes:
+      #   - external-ips: Cloudflare + internal network allowlist
+      #   - real-ip: Extract real client IP from CF headers
+      #   - crowdsec: IDS/IPS blocking
+      #   - global-ratelimit: 300 req/min, 600 burst
+      #   - headers: Security response headers
       #
-      # If no middleware is specified, the service is UNPROTECTED (not recommended).
+      # Service-specific middleware chains (internal@file, external@file, etc.)
+      # add additional layers on top of this baseline.
+      middlewares:
+        - global-security@file
       tls:
         certResolver: letsencrypt
         domains:

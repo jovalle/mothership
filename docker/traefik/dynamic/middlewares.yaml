@@ -190,6 +190,28 @@ http:
         amount: 100
 
     # -------------------------------------------------------------------------
+    # global-ratelimit - Lighter Rate Limiting for Global Application
+    # -------------------------------------------------------------------------
+    # A more permissive rate limit applied globally via entrypoint defaults.
+    # This provides baseline protection without interfering with legitimate
+    # high-traffic services like photo galleries or media streaming.
+    #
+    # Configuration:
+    #   - average: 300 requests per minute sustained
+    #   - burst: 600 requests allowed in a burst
+    #   - period: 1 minute window
+    #
+    # Services requiring stricter limits should use 'ratelimit' middleware.
+    # -------------------------------------------------------------------------
+    global-ratelimit:
+      rateLimit:
+        average: 300
+        burst: 600
+        period: 1m
+        sourceCriterion:
+          requestHeaderName: CF-Connecting-IP
+
+    # -------------------------------------------------------------------------
     # crowdsec - Intrusion Detection & Prevention (IDS/IPS)
     # -------------------------------------------------------------------------
     # Integrates with CrowdSec security engine to block malicious IPs.
@@ -443,4 +465,36 @@ http:
           - ratelimit
           - inflight
           - geoblock
+          - headers
+
+    # -------------------------------------------------------------------------
+    # global-security - Entrypoint Default Security (Applied to ALL routes)
+    # -------------------------------------------------------------------------
+    # This middleware chain is applied at the websecure entrypoint level,
+    # providing baseline security for ALL routes including Pangolin services.
+    #
+    # Security layers (in order):
+    #   1. external-ips: Only Cloudflare proxy IPs + internal networks allowed
+    #   2. real-ip: Extract real client IP from CF headers
+    #   3. crowdsec: Block known malicious IPs (IDS/IPS)
+    #   4. global-ratelimit: Lighter rate limiting (300 req/min, 600 burst)
+    #   5. headers: Security response headers
+    #
+    # IMPORTANT: This chain intentionally EXCLUDES:
+    #   - geoblock: Would break users from non-US countries
+    #   - auth/basic-auth: Would create circular dependency with Authelia
+    #   - inflight: Can be too restrictive for media services
+    #
+    # Service-specific middlewares (like Pangolin's badger) are chained AFTER
+    # this global chain, providing defense-in-depth without conflicts.
+    #
+    # NOTE: This is set as default on the websecure entrypoint in traefik.yaml
+    # -------------------------------------------------------------------------
+    global-security:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - global-ratelimit
           - headers
