@@ -50,6 +50,55 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # =========================================================================
+    # Internal (Tailnet-only) Pangolin Access
+    # =========================================================================
+    # These routers expose Pangolin at pangolin.mothership.${DOMAIN}
+    # Only accessible from Tailscale/private networks via internal middleware
+    # =========================================================================
+
+    # HTTP to HTTPS redirect for internal access
+    pangolin-internal-redirect:
+      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`)'
+      service: next-service
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+
+    # Next.js router (internal)
+    pangolin-internal-next:
+      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`) && !PathPrefix(`/api/v1`)'
+      service: next-service
+      entryPoints:
+        - websecure
+      middlewares:
+        - internal@file
+      tls:
+        certResolver: letsencrypt
+
+    # API router (internal)
+    pangolin-internal-api:
+      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1`)'
+      service: api-service
+      entryPoints:
+        - websecure
+      middlewares:
+        - internal@file
+      tls:
+        certResolver: letsencrypt
+
+    # WebSocket router (internal)
+    pangolin-internal-ws:
+      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`)'
+      service: api-service
+      entryPoints:
+        - websecure
+      middlewares:
+        - internal@file
+      tls:
+        certResolver: letsencrypt
+
   services:
     next-service:
       loadBalancer:
