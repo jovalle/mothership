@@ -19,7 +19,7 @@ endpoints:
     url: "https://adguard.mothership.${DOMAIN}"
   - <<: *defaults
     name: adguard-nexus
-    url: "https://adguard.nexus.${DOMAIN}"
+    url: "https://adguard.nexus.${DOMAIN}/login.html"
   - <<: *defaults
     name: adguard-stargate
     url: "https://adguard.stargate.${DOMAIN}"
@@ -47,20 +47,17 @@ endpoints:
     name: console-stargate
     url: "https://console.stargate.${DOMAIN}"
   - <<: *defaults
-    name: dockge
-    url: "https://dockge.${DOMAIN}"
-  - <<: *defaults
     name: dockpeek
     url: "https://dockpeek.${DOMAIN}"
   - <<: *defaults
     name: dozzle
-    url: "https://dozzle.${DOMAIN}"
+    url: "https://dozzle.${DOMAIN}/healthcheck"
   - <<: *defaults
     name: excalidraw
     url: "https://excalidraw.${DOMAIN}"
   - <<: *defaults
     name: flaresolverr
-    url: "https://flaresolverr.${DOMAIN}"
+    url: "https://flaresolverr.${DOMAIN}/health"
   - <<: *defaults
     name: glances
     url: "https://glances.${DOMAIN}"
@@ -80,7 +77,7 @@ endpoints:
     url: "https://homepage.${DOMAIN}"
   - <<: *defaults
     name: immich
-    url: "https://immich.${DOMAIN}"
+    url: "https://immich.${DOMAIN}/api/server/ping"
   - <<: *defaults
     name: kromgo
     url: "https://kromgo.${DOMAIN}/query?format=endpoint&metric=cluster_memory_usage&style=flat&label=memory"
@@ -105,29 +102,26 @@ endpoints:
     url: "https://paperless.${DOMAIN}"
   - <<: *defaults
     name: pgadmin
-    url: "https://pgadmin.${DOMAIN}"
+    url: "https://pgadmin.${DOMAIN}/misc/ping"
   - <<: *defaults
     conditions:
       - "[STATUS] == 401"
     name: plex
     url: https://plex.${DOMAIN}
   - <<: *defaults
-    name: portainer
-    url: "https://portainer.${DOMAIN}"
-  - <<: *defaults
     headers: *auth
     name: profilarr
     url: "https://profilarr.${DOMAIN}/ping"
   - <<: *defaults
     name: prometheus
-    url: "https://prometheus.${DOMAIN}"
+    url: "https://prometheus.${DOMAIN}/-/healthy"
   - <<: *defaults
     headers: *auth
     name: prowlarr
     url: "https://prowlarr.${DOMAIN}/ping"
   - <<: *defaults
     name: qbittorrent
-    url: "https://qbittorrent.${DOMAIN}"
+    url: "https://qbittorrent.${DOMAIN}/ping"
   - <<: *defaults
     headers: *auth
     name: radarr
@@ -142,7 +136,7 @@ endpoints:
     url: "https://sonarr.${DOMAIN}/ping"
   - <<: *defaults
     name: syncthing
-    url: "https://syncthing.${DOMAIN}"
+    url: "https://syncthing.${DOMAIN}/ping"
   - <<: *defaults
     name: tautulli
     url: "https://tautulli.${DOMAIN}"
