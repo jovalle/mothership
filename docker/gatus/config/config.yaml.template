@@ -121,22 +121,25 @@ endpoints:
     url: "https://prowlarr.${DOMAIN}/ping"
   - <<: *defaults
     name: qbittorrent
-    url: "https://qbittorrent.${DOMAIN}/ping"
+    url: "https://qbittorrent.${DOMAIN}"
   - <<: *defaults
     headers: *auth
     name: radarr
     url: "https://radarr.${DOMAIN}/ping"
   - <<: *defaults
-    headers: *auth
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[STATUS] == 401"
     name: sabnzbd
-    url: "https://sabnzbd.${DOMAIN}/ping"
+    url: "https://sabnzbd.${DOMAIN}"
   - <<: *defaults
     headers: *auth
     name: sonarr
     url: "https://sonarr.${DOMAIN}/ping"
   - <<: *defaults
     name: syncthing
-    url: "https://syncthing.${DOMAIN}/ping"
+    url: "https://syncthing.${DOMAIN}"
   - <<: *defaults
     name: tautulli
     url: "https://tautulli.${DOMAIN}"
