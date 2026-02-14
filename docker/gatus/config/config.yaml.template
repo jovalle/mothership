@@ -15,14 +15,11 @@ endpoint-defaults: &defaults
   interval: 30s
 endpoints:
   - <<: *defaults
+    name: adguard
+    url: "https://adguard.${DOMAIN}"
+  - <<: *defaults
     name: adguard-mothership
     url: "https://adguard.mothership.${DOMAIN}"
-  - <<: *defaults
-    name: adguard-nexus
-    url: "https://adguard.nexus.${DOMAIN}/login.html"
-  - <<: *defaults
-    name: adguard-stargate
-    url: "https://adguard.stargate.${DOMAIN}"
   - <<: *defaults
     name: authelia
     url: "https://auth.${DOMAIN}"
@@ -44,9 +41,6 @@ endpoints:
     name: console-nexus
     url: "https://console.nexus.${DOMAIN}"
   - <<: *defaults
-    name: console-stargate
-    url: "https://console.stargate.${DOMAIN}"
-  - <<: *defaults
     name: dockpeek
     url: "https://dockpeek.${DOMAIN}"
   - <<: *defaults
@@ -65,7 +59,7 @@ endpoints:
     client:
       insecure: true
     name: go
-    url: "http://go.${DOMAIN}/status"
+    url: "http://go.${DOMAIN}/"
   - <<: *defaults
     name: grafana
     url: "https://grafana.${DOMAIN}"
@@ -104,10 +98,13 @@ endpoints:
     name: pgadmin
     url: "https://pgadmin.${DOMAIN}/misc/ping"
   - <<: *defaults
+    client:
+      insecure: true
     conditions:
-      - "[STATUS] == 401"
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*machineIdentifier*)"
     name: plex
-    url: https://plex.${DOMAIN}
+    url: https://plex.${DOMAIN}/identity
   - <<: *defaults
     headers: *auth
     name: profilarr
@@ -144,21 +141,22 @@ endpoints:
     name: tautulli
     url: "https://tautulli.${DOMAIN}"
   - <<: *defaults
+    name: traefik
+    url: "https://traefik.${DOMAIN}"
+  - <<: *defaults
     name: traefik-mothership
     url: "https://traefik.mothership.${DOMAIN}"
   - <<: *defaults
-    name: traefik-nexus
-    url: "https://traefik.nexus.${DOMAIN}"
-  - <<: *defaults
-    name: traefik-stargate
-    url: "https://traefik.stargate.${DOMAIN}"
-  - <<: *defaults
     alerts:
       - type: discord
+    client: &external-client
+      timeout: 10s
+      dns-resolver: "tcp://1.1.1.1:53"
     group: external
     name: requests
     url: https://requests.${DOMAIN}
   - <<: *defaults
+    client: *external-client
     group: external
     name: stat
     ui:
@@ -167,12 +165,14 @@ endpoints:
   - <<: *defaults
     alerts:
       - type: discord
+    client: *external-client
     group: external
     name: status
     url: https://status.${DOMAIN}
   - <<: *defaults
     alerts:
       - type: discord
+    client: *external-client
     group: external
     name: dash
     url: https://dash.${DOMAIN}
@@ -193,6 +193,7 @@ endpoints:
   - <<: *defaults
     alerts:
       - type: discord
+    client: *external-client
     group: external
     name: join
     url: https://join.${DOMAIN}

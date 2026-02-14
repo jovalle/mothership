@@ -252,10 +252,15 @@ services:
       traefik.enable: true
       traefik.http.routers.gatus.middlewares: external-bypass@file
       traefik.http.routers.gatus.rule: Host(`status.${DOMAIN}`)
+      traefik.http.routers.gatus-internal.middlewares: internal@file
+      traefik.http.routers.gatus-internal.rule: Host(`status.mothership.${DOMAIN}`)
+      traefik.http.routers.gatus.service: gatus
       traefik.http.services.gatus.loadbalancer.server.port: 8080
     networks:
       - external
       - internal
+    ports:
+      - ${INTERNAL_IP}:8181:8080
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

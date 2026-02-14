@@ -3,13 +3,6 @@
 # =============================================================================
 http:
   routers:
-    traefik-dashboard:
-      entryPoints:
-        - websecure
-      rule: 'Host(`traefik.{{ env "DOMAIN" }}`)'
-      service: api@internal
-      tls:
-        certResolver: letsencrypt
     traefik-internal-dashboard:
       entryPoints:
         - websecure
