@@ -243,7 +243,7 @@ http:
           crowdsecAppsecHost: crowdsec:7422
           crowdsecAppsecUnreachableBlock: false
           crowdsecLapiHost: crowdsec:8080
-          crowdsecLapiKey: 'lvz+xudtKWBIL65Rh9ekTO6B0eh2OyRPkXY/VXrrj5o'
+          crowdsecLapiKey: '{{ env "CROWDSEC_BOUNCER_KEY" }}'
           crowdsecLapiScheme: http
           crowdsecMode: stream
           defaultDecisionSeconds: 60
@@ -474,11 +474,10 @@ http:
     # providing baseline security for ALL routes including Pangolin services.
     #
     # Security layers (in order):
-    #   1. external-ips: Only Cloudflare proxy IPs + internal networks allowed
-    #   2. real-ip: Extract real client IP from CF headers
-    #   3. crowdsec: Block known malicious IPs (IDS/IPS)
-    #   4. global-ratelimit: Lighter rate limiting (300 req/min, 600 burst)
-    #   5. headers: Security response headers
+    #   1. real-ip: Extract real client IP from CF headers
+    #   2. crowdsec: Block known malicious IPs (IDS/IPS)
+    #   3. global-ratelimit: Lighter rate limiting (300 req/min, 600 burst)
+    #   4. headers: Security response headers
     #
     # IMPORTANT: This chain intentionally EXCLUDES:
     #   - geoblock: Would break users from non-US countries
@@ -493,7 +492,6 @@ http:
     global-security:
       chain:
         middlewares:
-          - external-ips
           - real-ip
           - crowdsec
           - global-ratelimit

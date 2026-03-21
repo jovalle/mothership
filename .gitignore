@@ -9,11 +9,11 @@
 certs/
 db/
 docker/adguard/
-docker/authelia/configuration.yml
-docker/authelia/db.sqlite3
-docker/authelia/notification.txt
-docker/authelia/oidc_config_snippet.yaml
-docker/authelia/users_database.yaml
+docker/authelia/data/configuration.yml
+docker/authelia/data/db.sqlite3
+docker/authelia/data/notification.txt
+docker/authelia/data/oidc_config_snippet.yaml
+docker/authelia/data/users_database.yaml
 docker/beszel-agent/fingerprint
 docker/crowdsec/config
 docker/crowdsec-web-ui
