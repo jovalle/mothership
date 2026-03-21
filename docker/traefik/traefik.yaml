@@ -95,10 +95,8 @@ entryPoints:
     address: ":443"
     http:
       # Global security middleware applies baseline protection to ALL routes:
-      #   - external-ips: Cloudflare + internal network allowlist
       #   - real-ip: Extract real client IP from CF headers
       #   - crowdsec: IDS/IPS blocking
-      #   - global-ratelimit: 300 req/min, 600 burst
       #   - headers: Security response headers
       #
       # Service-specific middleware chains (internal@file, external@file, etc.)
@@ -111,9 +109,13 @@ entryPoints:
           - main: '{{ env "DOMAIN" }}'
             sans:
               - '*.{{ env "DOMAIN" }}'
+              - '*.cloud.{{ env "DOMAIN" }}'
               - '*.mothership.{{ env "DOMAIN" }}'
               - '*.nexus.{{ env "DOMAIN" }}'
+              - '*.proxy.{{ env "DOMAIN" }}'
               - '*.stargate.{{ env "DOMAIN" }}'
+              - '*.svc.{{ env "DOMAIN" }}'
+              - '*.tws.{{ env "DOMAIN" }}'
     forwardedHeaders:
       trustedIPs:
         - "173.245.48.0/20"

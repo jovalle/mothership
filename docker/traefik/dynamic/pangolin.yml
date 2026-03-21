@@ -12,7 +12,7 @@ http:
   routers:
     # HTTP to HTTPS redirect router
     main-app-router-redirect:
-      rule: 'Host(`pangolin.{{ env "DOMAIN" }}`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`)'
       service: next-service
       entryPoints:
         - web
@@ -21,10 +21,12 @@ http:
 
     # Next.js router (handles everything except API and WebSocket paths)
     next-router:
-      rule: 'Host(`pangolin.{{ env "DOMAIN" }}`) && !PathPrefix(`/api/v1`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) && !PathPrefix(`/api/v1`)'
       service: next-service
       entryPoints:
         - websecure
+      middlewares:
+        - pangolin-direct@file
       tls:
         certResolver: letsencrypt
         domains:
@@ -34,68 +36,23 @@ http:
 
     # API router (handles /api/v1 paths)
     api-router:
-      rule: 'Host(`pangolin.{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1`)'
       service: api-service
       entryPoints:
         - websecure
+      middlewares:
+        - pangolin-direct@file
       tls:
         certResolver: letsencrypt
 
     # WebSocket router
     ws-router:
-      rule: 'Host(`pangolin.{{ env "DOMAIN" }}`)'
-      service: api-service
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
-
-    # =========================================================================
-    # Internal (Tailnet-only) Pangolin Access
-    # =========================================================================
-    # These routers expose Pangolin at pangolin.mothership.${DOMAIN}
-    # Only accessible from Tailscale/private networks via internal middleware
-    # =========================================================================
-
-    # HTTP to HTTPS redirect for internal access
-    pangolin-internal-redirect:
-      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`)'
-      service: next-service
-      entryPoints:
-        - web
-      middlewares:
-        - redirect-to-https
-
-    # Next.js router (internal)
-    pangolin-internal-next:
-      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`) && !PathPrefix(`/api/v1`)'
-      service: next-service
-      entryPoints:
-        - websecure
-      middlewares:
-        - internal@file
-      tls:
-        certResolver: letsencrypt
-
-    # API router (internal)
-    pangolin-internal-api:
-      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`)'
       service: api-service
       entryPoints:
         - websecure
       middlewares:
-        - internal@file
-      tls:
-        certResolver: letsencrypt
-
-    # WebSocket router (internal)
-    pangolin-internal-ws:
-      rule: 'Host(`pangolin.mothership.{{ env "DOMAIN" }}`)'
-      service: api-service
-      entryPoints:
-        - websecure
-      middlewares:
-        - internal@file
+        - pangolin-direct@file
       tls:
         certResolver: letsencrypt
 

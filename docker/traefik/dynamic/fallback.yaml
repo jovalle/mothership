@@ -1,0 +1,161 @@
+# =============================================================================
+# Cross-Proxy Fallback: Mothership → Nexus
+# =============================================================================
+# When mothership Traefik receives a request for a hostname it doesn't have a
+# named route for, it forwards the request to nexus Traefik via Tailscale.
+#
+# Loop prevention:
+#   - The catch-all router only matches requests WITHOUT an X-Proxy-Loop header.
+#   - The proxy-loop middleware adds X-Proxy-Loop: true to forwarded requests.
+#   - If nexus also doesn't have the route and tries to forward back, the
+#     mothership catch-all won't match (header present) → clean 404.
+#
+# Priority:
+#   - Traefik assigns priority based on rule length. Explicit Host() rules
+#     (e.g., Host(`app.example.com`)) are longer and always win over this
+#     catch-all. This catch-all only fires when no named route matches.
+# =============================================================================
+
+http:
+  middlewares:
+    # -------------------------------------------------------------------------
+    # proxy-loop - Loop Prevention Header
+    # -------------------------------------------------------------------------
+    # Marks the request as having been proxied once. The catch-all router
+    # checks for the absence of this header, preventing infinite bouncing
+    # between mothership and nexus.
+    # -------------------------------------------------------------------------
+    proxy-loop:
+      headers:
+        customRequestHeaders:
+          X-Proxy-Loop: "mothership"
+
+  routers:
+    # -------------------------------------------------------------------------
+    # nexus-fallback-origin - Self-Origin Catch-All via Cloudflare (no auth)
+    # -------------------------------------------------------------------------
+    # Matches requests that arrive through Cloudflare with original client IP
+    # equal to this host's public IP. This covers self-checks (e.g. Gatus)
+    # that resolve public hostnames and hairpin through Cloudflare.
+    # -------------------------------------------------------------------------
+    nexus-fallback-origin:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`) && Header(`CF-Connecting-IP`, `{{ env "EXTERNAL_IP" }}`)'
+      priority: 3
+      middlewares:
+        - fallback-origin@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+    # -------------------------------------------------------------------------
+    # nexus-fallback-sub-origin - Self-Origin Catch-All via Cloudflare
+    # -------------------------------------------------------------------------
+    nexus-fallback-sub-origin:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`) && Header(`CF-Connecting-IP`, `{{ env "EXTERNAL_IP" }}`)'
+      priority: 3
+      middlewares:
+        - fallback-origin@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+    # -------------------------------------------------------------------------
+    # nexus-fallback-internal - Internal Catch-All Forward to Nexus (no auth)
+    # -------------------------------------------------------------------------
+    # Matches internal/private source IPs only. This allows service-originated
+    # requests from mothership (e.g. Gatus) to reach nexus fallback without
+    # triggering Authelia on mothership.
+    # -------------------------------------------------------------------------
+    nexus-fallback-internal:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`) && ClientIP(`10.0.0.0/8`, `100.64.0.0/10`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.1/32`, `fd7a:115c:a1e0::/48`, `::1/128`)'
+      priority: 2
+      middlewares:
+        - fallback-internal@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+    # -------------------------------------------------------------------------
+    # nexus-fallback - Internet Catch-All Forward to Nexus
+    # -------------------------------------------------------------------------
+    # Matches any *.example.com request that:
+    #   1. Has no explicit route on this Traefik instance
+    #   2. Has NOT already been proxied (no X-Proxy-Loop header)
+    #
+    # Priority 1 ensures all named routes take precedence.
+    # -------------------------------------------------------------------------
+    nexus-fallback:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`)'
+      priority: 1
+      middlewares:
+        - fallback-internet@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+    # -------------------------------------------------------------------------
+    # nexus-fallback-sub-internal - Internal Catch-All for *.*.example.com
+    # -------------------------------------------------------------------------
+    nexus-fallback-sub-internal:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`) && ClientIP(`10.0.0.0/8`, `100.64.0.0/10`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.1/32`, `fd7a:115c:a1e0::/48`, `::1/128`)'
+      priority: 2
+      middlewares:
+        - fallback-internal@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+    # -------------------------------------------------------------------------
+    # nexus-fallback-sub - Internet Catch-All for *.*.example.com subdomains
+    # -------------------------------------------------------------------------
+    nexus-fallback-sub:
+      entryPoints:
+        - websecure
+      rule: 'HostRegexp(`^[a-z0-9-]+\.[a-z0-9-]+\.{{ env "DOMAIN" }}$`) && !HeaderRegexp(`X-Proxy-Loop`, `.+`)'
+      priority: 1
+      middlewares:
+        - fallback-internet@file
+      service: nexus-backend
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    # -------------------------------------------------------------------------
+    # nexus-backend - Nexus Traefik via Tailscale
+    # -------------------------------------------------------------------------
+    # Forwards to nexus Traefik over the Tailscale mesh VPN.
+    # Uses serversTransport to skip TLS verification (nexus uses its own
+    # cert that mothership doesn't trust by default).
+    # -------------------------------------------------------------------------
+    nexus-backend:
+      loadBalancer:
+        servers:
+          - url: 'https://100.100.1.2:443'
+        serversTransport: tailscale-transport
+
+  serversTransports:
+    # -------------------------------------------------------------------------
+    # tailscale-transport - TLS config for Tailscale backends
+    # -------------------------------------------------------------------------
+    # Skips TLS certificate verification for the nexus backend.
+    # This is safe because traffic travels over the encrypted Tailscale
+    # tunnel (WireGuard). The TLS on nexus may use a different cert/CA
+    # than what mothership trusts.
+    # -------------------------------------------------------------------------
+    tailscale-transport:
+      insecureSkipVerify: true
+      serverName: 'fallback.{{ env "DOMAIN" }}'
+      forwardingTimeouts:
+        dialTimeout: 10s
+        responseHeaderTimeout: 30s
+        idleConnTimeout: 90s

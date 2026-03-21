@@ -7,6 +7,8 @@ http:
       entryPoints:
         - websecure
       rule: 'Host(`traefik.mothership.{{ env "DOMAIN" }}`)'
+      middlewares:
+        - internal@file
       service: api@internal
       tls:
         certResolver: letsencrypt

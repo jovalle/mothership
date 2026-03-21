@@ -450,8 +450,9 @@ http:
     #   2. real-ip: Extract real client IP from CF headers
     #   3. crowdsec: Block known malicious IPs
     #   4. ratelimit: Prevent request flooding
-    #   5. geoblock: Allow only configured countries
-    #   6. headers: Security headers applied
+    #   5. inflight: Limit concurrent requests
+    #   6. geoblock: Allow only configured countries
+    #   7. headers: Security headers applied
     #
     # Usage:
     #   traefik.http.routers.myapp.middlewares: external-bypass@file
@@ -468,6 +469,26 @@ http:
           - headers
 
     # -------------------------------------------------------------------------
+    # pangolin-direct - Public Direct Connectivity Chain (no auth/rate/geoblock)
+    # -------------------------------------------------------------------------
+    # For high-connectivity apps exposed via Pangolin (e.g., media, photo sync)
+    # where strict auth/rate/geoblock controls can break legitimate traffic.
+    #
+    # Security layers (in order):
+    #   1. external-ips: Restrict to Cloudflare + trusted internal ranges
+    #   2. real-ip: Preserve client identity for logs/decisions
+    #   3. crowdsec: Ban abusive clients
+    #   4. headers: Security response headers
+    # -------------------------------------------------------------------------
+    pangolin-direct:
+      chain:
+        middlewares:
+          - external-ips
+          - real-ip
+          - crowdsec
+          - headers
+
+    # -------------------------------------------------------------------------
     # global-security - Entrypoint Default Security (Applied to ALL routes)
     # -------------------------------------------------------------------------
     # This middleware chain is applied at the websecure entrypoint level,
@@ -476,10 +497,10 @@ http:
     # Security layers (in order):
     #   1. real-ip: Extract real client IP from CF headers
     #   2. crowdsec: Block known malicious IPs (IDS/IPS)
-    #   3. global-ratelimit: Lighter rate limiting (300 req/min, 600 burst)
-    #   4. headers: Security response headers
+    #   3. headers: Security response headers
     #
     # IMPORTANT: This chain intentionally EXCLUDES:
+    #   - global-ratelimit: internal fallback traffic should not be throttled
     #   - geoblock: Would break users from non-US countries
     #   - auth/basic-auth: Would create circular dependency with Authelia
     #   - inflight: Can be too restrictive for media services
@@ -494,5 +515,31 @@ http:
         middlewares:
           - real-ip
           - crowdsec
-          - global-ratelimit
           - headers
+
+    # -------------------------------------------------------------------------
+    # fallback-internet - Strict Internet Fallback Chain
+    # -------------------------------------------------------------------------
+    fallback-internet:
+      chain:
+        middlewares:
+          - external
+          - proxy-loop@file
+
+    # -------------------------------------------------------------------------
+    # fallback-origin - Self-Origin Internet Fallback Chain
+    # -------------------------------------------------------------------------
+    fallback-origin:
+      chain:
+        middlewares:
+          - external-bypass
+          - proxy-loop@file
+
+    # -------------------------------------------------------------------------
+    # fallback-internal - Internal Fallback Chain (no 2FA/rate limits)
+    # -------------------------------------------------------------------------
+    fallback-internal:
+      chain:
+        middlewares:
+          - internal
+          - proxy-loop@file
