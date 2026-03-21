@@ -15,11 +15,11 @@ endpoint-defaults: &defaults
   interval: 30s
 endpoints:
   - <<: *defaults
-    name: adguard
-    url: "https://adguard.${DOMAIN}"
+    name: ns1
+    url: "http://adguard/"
   - <<: *defaults
-    name: adguard-mothership
-    url: "https://adguard.mothership.${DOMAIN}"
+    name: ns2
+    url: "https://ns2.${DOMAIN}"
   - <<: *defaults
     name: authelia
     url: "https://auth.${DOMAIN}"
@@ -38,8 +38,14 @@ endpoints:
     name: cloudflare
     url: "icmp://1.1.1.1"
   - <<: *defaults
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[STATUS] == 301"
+    headers:
+      Host: "console.nexus.${DOMAIN}"
     name: console-nexus
-    url: "https://console.nexus.${DOMAIN}"
+    url: "http://100.100.1.2"
   - <<: *defaults
     name: dockpeek
     url: "https://dockpeek.${DOMAIN}"
@@ -64,9 +70,6 @@ endpoints:
     name: grafana
     url: "https://grafana.${DOMAIN}"
   - <<: *defaults
-    name: harborguard
-    url: "https://harborguard.${DOMAIN}"
-  - <<: *defaults
     name: homepage
     url: "https://homepage.${DOMAIN}"
   - <<: *defaults
@@ -88,9 +91,6 @@ endpoints:
   - <<: *defaults
     name: nextcloud
     url: "https://nextcloud.${DOMAIN}"
-  - <<: *defaults
-    name: overseerr
-    url: "https://overseerr.${DOMAIN}"
   - <<: *defaults
     name: paperless
     url: "https://paperless.${DOMAIN}"
@@ -131,6 +131,9 @@ endpoints:
     name: sabnzbd
     url: "https://sabnzbd.${DOMAIN}"
   - <<: *defaults
+    name: seerr
+    url: "https://seerr.${DOMAIN}"
+  - <<: *defaults
     headers: *auth
     name: sonarr
     url: "https://sonarr.${DOMAIN}/ping"
@@ -143,9 +146,6 @@ endpoints:
   - <<: *defaults
     name: traefik
     url: "https://traefik.${DOMAIN}"
-  - <<: *defaults
-    name: traefik-mothership
-    url: "https://traefik.mothership.${DOMAIN}"
   - <<: *defaults
     alerts:
       - type: discord
