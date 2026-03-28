@@ -18,10 +18,10 @@ domains:
 server:
     secret: "${PANGOLIN_SERVER_SECRET}"
     cors:
-        origins: ["https://pangolin.${DOMAIN}", "https://pangolin.mothership.${DOMAIN}"]
-        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
-        allowed_headers: ["X-CSRF-Token", "Content-Type"]
-        credentials: false
+        origins: ["https://pangolin.${DOMAIN}", "https://pangolin.mothership.${DOMAIN}", "https://proxy.${DOMAIN}", "https://proxy.mothership.${DOMAIN}"]
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+        allowed_headers: ["Authorization", "X-CSRF-Token", "Content-Type", "Accept", "Origin", "X-Requested-With"]
+        credentials: true
     maxmind_db_path: "./config/GeoLite2-Country.mmdb"
     trust_proxy: 2
 

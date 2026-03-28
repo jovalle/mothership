@@ -12,7 +12,7 @@ http:
   routers:
     # HTTP to HTTPS redirect router
     main-app-router-redirect:
-      rule: 'Host(`proxy.{{ env "DOMAIN" }}`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) || Host(`pangolin.{{ env "DOMAIN" }}`)'
       service: next-service
       entryPoints:
         - web
@@ -21,7 +21,7 @@ http:
 
     # Next.js router (handles everything except API and WebSocket paths)
     next-router:
-      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) && !PathPrefix(`/api/v1`)'
+      rule: '(Host(`proxy.{{ env "DOMAIN" }}`) || Host(`pangolin.{{ env "DOMAIN" }}`)) && !PathPrefix(`/api/v1`)'
       service: next-service
       entryPoints:
         - websecure
@@ -36,7 +36,7 @@ http:
 
     # API router (handles /api/v1 paths)
     api-router:
-      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1`)'
+      rule: '(Host(`proxy.{{ env "DOMAIN" }}`) || Host(`pangolin.{{ env "DOMAIN" }}`)) && PathPrefix(`/api/v1`)'
       service: api-service
       entryPoints:
         - websecure
@@ -47,7 +47,7 @@ http:
 
     # WebSocket router
     ws-router:
-      rule: 'Host(`proxy.{{ env "DOMAIN" }}`)'
+      rule: 'Host(`proxy.{{ env "DOMAIN" }}`) || Host(`pangolin.{{ env "DOMAIN" }}`)'
       service: api-service
       entryPoints:
         - websecure
