@@ -77,7 +77,7 @@ services:
       test: [ "CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1" ]
       timeout: 10s
     hostname: adguard
-    image: adguard/adguardhome
+    image: adguard/adguardhome@sha256:7fbf01d73ecb7a32d2d9e6cef8bf88e64bd787889ca80a1e8bce30cd4c084442
     labels:
       traefik.enable: true
       traefik.http.routers.adguard.middlewares: internal@file
@@ -136,7 +136,7 @@ services:
       test: [ "CMD", "wget", "-q", "-O-", "http://localhost:9091/api/health" ]
       timeout: 10s
     hostname: authelia
-    image: authelia/authelia:4.38
+    image: authelia/authelia:4.38@sha256:46021dc20efdcc5cdc38a29e3050b8835429a155ae6215388ed3b793a02eb0ab
     labels:
       homepage.description: Authentication & OIDC Provider
       homepage.group: Gateway
@@ -184,7 +184,7 @@ services:
       KEY: ${BESZEL_AGENT_KEY:?Beszel agent key required}
       LISTEN: 45876
       TOKEN: ${BESZEL_AGENT_TOKEN:?Beszel agent token required}
-    image: henrygd/beszel-agent
+    image: henrygd/beszel-agent@sha256:28f42890c6efde336a56c83f976616e41226b5937c79cbb530f5a5ad242ace36
     network_mode: host
     restart: unless-stopped
     security_opt:
@@ -211,7 +211,7 @@ services:
       start_period: 60s
       test: [ "CMD", "cloudflared", "version" ]
       timeout: 10s
-    image: cloudflare/cloudflared
+    image: cloudflare/cloudflared@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
     networks:
       - internal
     read_only: true
@@ -253,7 +253,7 @@ services:
       retries: 3
       start_period: 30s
     hostname: crowdsec
-    image: crowdsecurity/crowdsec
+    image: crowdsecurity/crowdsec@sha256:63b595fef92de1778573b375897a45dd226637ee9a3d3db9f57ac7355c369493
     networks:
       - internal
     ports:
@@ -292,7 +292,7 @@ services:
       - CROWDSEC_IDLE_REFRESH_INTERVAL=5m
       - CROWDSEC_IDLE_THRESHOLD=2m
       - CROWDSEC_FULL_REFRESH_INTERVAL=5m
-    image: ghcr.io/theduffman85/crowdsec-web-ui
+    image: ghcr.io/theduffman85/crowdsec-web-ui@sha256:0228d8d24366ea3b2dd40754683b2233d5af2e71fa71622beae79c27b005500b
     labels:
       traefik.enable: true
       traefik.http.routers.crowdsec-web-ui.middlewares: internal@file
@@ -334,7 +334,7 @@ services:
       start_period: 10s
       test: [ "CMD-SHELL", "wget -q --spider http://localhost:2375/_ping || exit 1" ]
       timeout: 10s
-    image: ghcr.io/tecnativa/docker-socket-proxy
+    image: ghcr.io/tecnativa/docker-socket-proxy@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     labels:
       traefik.enable: false
     ports:
@@ -363,7 +363,7 @@ services:
       - 100.100.1.1
       - 100.100.1.2
       - 100.100.1.3
-    image: twinproduction/gatus
+    image: twinproduction/gatus@sha256:d24f8f9514481598e5d2fc3154928ffd661ebca56f64459d7e107a16d3845725
     labels:
       traefik.enable: true
       traefik.http.routers.gatus.middlewares: external-bypass@file
@@ -407,7 +407,7 @@ services:
       start_period: 20s
       test: [ "CMD-SHELL", "nc -z localhost 3004 || exit 1" ]
       timeout: 10s
-    image: fosrl/gerbil
+    image: fosrl/gerbil@sha256:c12152ad087677a35cc1a8f176ad4ed5bb567aba5f033b116647c897b86d5461
     networks:
       - external
     ports:
@@ -434,7 +434,7 @@ services:
       retries: 3
       test: [ "CMD-SHELL", "wget -q --spider http://localhost:7880/ || exit 1" ]
       timeout: 10s
-    image: xavierh/goaccess-for-nginxproxymanager
+    image: xavierh/goaccess-for-nginxproxymanager@sha256:30f38e5f30ec09a6c850dac4d8f7769f6a15ca03bdb1a5a8725fbe3bc6219b93
     labels:
       traefik.enable: true
       traefik.http.routers.goaccess.middlewares: external@file
@@ -459,7 +459,7 @@ services:
       retries: 15
       test: [ "CMD", "curl", "-f", "http://localhost:3001/api/v1/" ]
       timeout: 10s
-    image: fosrl/pangolin
+    image: fosrl/pangolin@sha256:06aad9971df1a72edf0bea07d64fa67daeb8ee84319faf6813850c43e950eaa5
     networks:
       - external
     restart: unless-stopped
@@ -492,7 +492,7 @@ services:
     environment:
       DOCKER_SUBNET: 172.16.0.0/12
       GERBIL_CONTAINER_NAME: gerbil
-    image: docker:29.1.3-cli-alpine3.23
+    image: docker:29.1.3-cli-alpine3.23@sha256:4fa0ee1f3a7e4354c4ea34558b6d4ee32859baf4973d4c8ccc8e7fe3dd730c04
     network_mode: host
     privileged: true
     restart: unless-stopped
@@ -525,7 +525,7 @@ services:
       test: [ "CMD-SHELL", "tailscale status --json | grep -q 'BackendState.*Running' || exit 1" ]
       timeout: 10s
     hostname: mothership
-    image: tailscale/tailscale
+    image: tailscale/tailscale@sha256:95e528798bebe75f39b10e74e7051cf51188ee615934f232ba7ad06a3390ffa1
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -567,7 +567,7 @@ services:
       test: [ "CMD-SHELL", "wget -q --spider http://localhost:80/ping || exit 1" ]
       timeout: 10s
     hostname: traefik
-    image: traefik
+    image: traefik@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
     networks:
       - external
       - internal
@@ -604,7 +604,7 @@ services:
       - ALL
     container_name: whoami
     hostname: whoami
-    image: traefik/whoami
+    image: traefik/whoami@sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab
     labels:
       traefik.enable: true
       traefik.http.routers.whoami.middlewares: external-basic@file
