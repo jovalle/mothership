@@ -24,6 +24,18 @@ endpoints:
     name: authelia
     url: "https://auth.${DOMAIN}"
   - <<: *defaults
+    name: gatus-self
+    url: "http://${INTERNAL_IP}:8181/"
+  - <<: *defaults
+    name: traefik-ping
+    url: "http://${INTERNAL_IP}/ping"
+  - <<: *defaults
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == OK"
+    name: docker-socket-proxy
+    url: "http://${INTERNAL_IP}:2375/_ping"
+  - <<: *defaults
     headers: &auth
       Authorization: "Basic ${GATUS_AUTH_TOKEN}"
     name: bazarr
@@ -62,10 +74,11 @@ endpoints:
     name: glances
     url: "https://glances.${DOMAIN}"
   - <<: *defaults
-    client:
-      insecure: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*\"status\":\"ok\"*)"
     name: go
-    url: "http://go.${DOMAIN}/"
+    url: "http://go.${DOMAIN}/healthz"
   - <<: *defaults
     name: grafana
     url: "https://grafana.${DOMAIN}"
