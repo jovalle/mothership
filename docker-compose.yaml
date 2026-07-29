@@ -136,7 +136,7 @@ services:
       test: [ "CMD", "wget", "-q", "-O-", "http://localhost:9091/api/health" ]
       timeout: 10s
     hostname: authelia
-    image: authelia/authelia:4.38
+    image: authelia/authelia:4.39@sha256:1b363e9279e742397966333f364e0876ae02bf5c876de73e83af6d48c57ff51b
     labels:
       homepage.description: Authentication & OIDC Provider
       homepage.group: Gateway
